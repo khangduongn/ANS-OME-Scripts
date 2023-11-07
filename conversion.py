@@ -246,57 +246,8 @@ def stitch_tiles(tiles_path, output_path):
     return filename, img_shape, wMicrons/tile_xsize, hMicrons/tile_ysize
 
 
-def validateCompression(compression, quality_factor):
+def saveImages(image_paths, output_dir, compression_parameter, pyramid_resolutions, pyramid_scale, bigtiff, tileSizeX, tileSizeY):
 
-
-    #if the user chooses uncompressed or none as the compression type
-    if (compression.lower().replace(" ", "") in ['none', 'uncompressed']):
-
-        #set the compression parameter as None
-        return None
-        
-    #if the user provides compression and quality parameters
-    elif (compression.lower().replace(" ", "") in ['jpeg', 'jpeg2000', 'jpeg-2000']) and (quality_factor > 0):
-
-        #set the compression parameter as the compression type and quality factor
-        return (compression, quality_factor)
-
-    else:
-
-        raise Exception("Invalid compression schema or quality factor. Please check your input again")
-    
-
-
-if __name__ == '__main__':
-
-    args = parseArguments()
-    
-    startTimeScript = time.time()
-
-    #TODO: validate this input so that users cant put negative numbers
-    #store the input tile size into designated variables
-    tileSizeX, tileSizeY = args.tile_size
-
-    #validate the compression and quality factor inputs and return the compression parameter that will be passed to tifffile
-    compression_parameter = validateCompression(args.compression, args.quality) 
-
-    #searches recursively within the input directory for any directories containing the XYZPositions.txt.
-    #this assumes that any folder containing the XYZPositions.txt file has all the tiles needed to stitch an image.
-    #this basically uses the XYZPositions.txt file as the instruction to stitch the tiles
-    #XYZ_path is a list containing the paths of all XYZPositions.txt files in the input directory
-    XYZ_path = glob.glob(os.path.join(args.input_dir, '**/XYZPositions.txt'), recursive=True)
-
-    #gets the path of the tile images (basically strips XYZPositions.txt from the directories stored in the list XYZ_path)
-    image_paths = [os.path.dirname(img_dir) for img_dir in XYZ_path]
-
-    #if there are no paths stored in the list image_paths (aka no XYZPositions.txt or instruction to stitch to be found)
-    if len(image_paths) == 0:
-
-        #then raise an error.
-        raise Exception('No XYZPositions.txt file to be found. Make sure this file is in the same directory with the tiles you want to stitch')
-    
-    
-    
     #for each image (tile paths)
     for tiles_path in image_paths:
 
@@ -305,10 +256,10 @@ if __name__ == '__main__':
         try:
 
             #generate the path of the stitched image
-            outputImagePath = os.path.join(args.output_dir, os.path.basename(tiles_path)+ '.ome.tiff')
+            outputImagePath = os.path.join(output_dir, os.path.basename(tiles_path)+ '.ome.tiff')
             
             #stitch the tiles together 
-            results = stitch_tiles(tiles_path, args.output_dir)
+            results = stitch_tiles(tiles_path, output_dir)
 
             #if the stitching is successful
             if type(results) is tuple:
@@ -322,20 +273,20 @@ if __name__ == '__main__':
                 print('Begin saving images as OME-TIFF')
 
                 #if the user sets the pyramid resolutions to 0 (no pyramid generation)
-                if args.pyramid_resolutions == 0:
+                if pyramid_resolutions == 0:
                     
                     #save the image without pyramid levels
-                    with tifffile.TiffWriter(outputImagePath, bigtiff = args.bigtiff) as writer:
+                    with tifffile.TiffWriter(outputImagePath, bigtiff = bigtiff) as writer:
                         writer.write(images,metadata={'axes': 'ZYX', 'PhysicalSizeX': pixSizeX, 'PhysicalSizeXUnit': "µm", 'PhysicalSizeY': pixSizeY, 'PhysicalSizeYUnit': "µm"}, compression = compression_parameter, tile = (tileSizeX, tileSizeY))
 
                 
                 else:
                     
                     #store input pyramid resolutions and scale into designated variables
-                    num_pyramid_levels, pyr_scale = args.pyramid_resolutions, args.pyramid_scale
+                    num_pyramid_levels, pyr_scale = pyramid_resolutions, pyramid_scale
                     
 
-                    with tifffile.TiffWriter(outputImagePath, bigtiff=args.bigtiff) as tif:
+                    with tifffile.TiffWriter(outputImagePath, bigtiff=bigtiff) as tif:
                         
                         options = dict(tile=(tileSizeX, tileSizeY), compression = compression_parameter, 
                             metadata={'axes': 'ZYX', 'PhysicalSizeX': pixSizeX, 'PhysicalSizeXUnit': "µm", 'PhysicalSizeY': pixSizeY, 'PhysicalSizeYUnit':"µm"})
@@ -365,10 +316,63 @@ if __name__ == '__main__':
         except:
 
             print(f"Failed to stitch the tiles in the directory {tiles_path}. Check for issues.", end = '\n')
-            with open(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'), 'a') as f:
+            with open(os.path.join(os.path.dirname(output_dir), 'flagged_images.csv'), 'a') as f:
                 writer = csv.writer(f)
                 writer.writerow([tiles_path, "Can't determine overlap (Problem with stitching)", "Can't determine overlap (Problem with stitching)"])
 
+    
+def validateCompression(compression, quality_factor):
+
+
+    #if the user chooses uncompressed or none as the compression type
+    if (compression.lower().replace(" ", "") in ['none', 'uncompressed']):
+
+        #set the compression parameter as None
+        return None
+        
+    #if the user provides compression and quality parameters
+    elif (compression.lower().replace(" ", "") in ['jpeg', 'jpeg2000', 'jpeg-2000']) and (quality_factor > 0):
+
+        #set the compression parameter as the compression type and quality factor
+        return (compression, quality_factor)
+
+    else:
+
+        raise Exception("Invalid compression schema or quality factor. Please check your input again")
+    
+
+
+if __name__ == '__main__':
+
+    args = parseArguments()
+
+    startTimeScript = time.time()
+
+    #TODO: validate this input so that users cant put negative numbers
+    #store the input tile size into designated variables
+    tileSizeX, tileSizeY = args.tile_size
+
+    #validate the compression and quality factor inputs and return the compression parameter that will be passed to tifffile
+    compression_parameter = validateCompression(args.compression, args.quality) 
+
+    #searches recursively within the input directory for any directories containing the XYZPositions.txt.
+    #this assumes that any folder containing the XYZPositions.txt file has all the tiles needed to stitch an image.
+    #this basically uses the XYZPositions.txt file as the instruction to stitch the tiles
+    #XYZ_path is a list containing the paths of all XYZPositions.txt files in the input directory
+    XYZ_path = glob.glob(os.path.join(args.input_dir, '**/XYZPositions.txt'), recursive=True)
+
+    #gets the path of the tile images (basically strips XYZPositions.txt from the directories stored in the list XYZ_path)
+    image_paths = [os.path.dirname(img_dir) for img_dir in XYZ_path]
+
+    #if there are no paths stored in the list image_paths (aka no XYZPositions.txt or instruction to stitch to be found)
+    if len(image_paths) == 0:
+
+        #then raise an error.
+        raise Exception('No XYZPositions.txt file to be found. Make sure this file is in the same directory with the tiles you want to stitch')
+    
+    saveImages(image_paths, args.output_dir, compression_parameter, args.pyramid_resolutions, args.pyramid_scale, args.bigtiff, tileSizeX, tileSizeY)
+    
+    
     
     
 
