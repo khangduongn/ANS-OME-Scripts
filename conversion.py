@@ -313,8 +313,8 @@ def saveImages(image_paths, output_dir, compression_parameter, pyramid_resolutio
                 print()
                 
 
-        except:
-
+        except Exception as e:
+            print(f"Error: {e}")
             print(f"Failed to stitch the tiles in the directory {tiles_path}. Check for issues.", end = '\n')
             with open(os.path.join(os.path.dirname(output_dir), 'flagged_images.csv'), 'a') as f:
                 writer = csv.writer(f)
