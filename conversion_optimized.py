@@ -175,9 +175,7 @@ def stitch_tiles(tiles_path, output_path):
         y_step = float(y_final[0]-y_init[0])
 
         if (len(y_final) != 1) or (len(y_init) != 1) or (len(x_final) != 1) or (len(x_init) != 1):
-            with open(os.path.join(output_path, 'flagged_images.csv'), 'a') as f:
-                writer = csv.writer(f)
-                writer.writerow([tiles_path, 'There are two or more tiles that belong to the same row and column.'])
+            logging.error(f"{tiles_path},There are two or more tiles that belong to the same row and column.")
 
             return 'Flagged'
     
@@ -197,9 +195,7 @@ def stitch_tiles(tiles_path, output_path):
 
         else: 
             
-            with open(os.path.join(output_path, 'flagged_images.csv'), 'a') as f:
-                writer = csv.writer(f)
-                writer.writerow([tiles_path, f'# of pixels of overlap in the x and y directions is not 16. It is {overlap_x} in the x direction and {overlap_y} in the y direction.'])
+            logging.error(f"{tiles_path},Number of pixels of overlap in the x and y directions is not 16. It is {overlap_x} in the x direction and {overlap_y} in the y direction.")
 
             return 'Flagged'
     
@@ -265,9 +261,36 @@ def validateCompression(compression, quality_factor):
 
 if __name__ == '__main__':
 
-    loggingLevel = logging.DEBUG if args.verbose else logging.WARNING
-    logging.basicConfig(level=loggingLevel)
+    # create logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
 
+    # add a file handler and ensure that all error messages are logged to file
+    fileHandler = logging.FileHandler(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'))
+    fileHandler.setLevel(logging.ERROR) 
+
+    # create a formatter and set the formatter for the handler
+    formatting = logging.Formatter('%(message)s')
+    fileHandler.setFormatter(formatting)
+
+    # add the handler to the logger
+    logger.addHandler(fileHandler)
+
+    #if verbose is set, then output debug information and error messages to stdout
+    if args.verbose:
+
+        #create a stream handler and ensure that all messages are printed to stdout
+        streamHandler = logging.StreamHandler()
+        streamHandler.setLevel(logging.DEBUG)
+
+        # create a formatter and set the formatter for the handler
+        formatter = logging.Formatter("%(levelname)-8s: %(message)s")
+        streamHandler.setFormatter(formatter)
+
+        # add the handler to the logger
+        logger.addHandler(streamHandler)
+
+    
     startTimeScript = time.time()
 
     #TODO: validate this input so that users cant put negative numbers
@@ -321,7 +344,7 @@ if __name__ == '__main__':
                 images = np.memmap(temp_filename, dtype='uint8', mode='r', shape = img_shape)
 
 
-                logging.debug('Begin saving images as OME-TIFF')
+                logging.debug('Begin saving image as OME-TIFF')
 
                 #if the user sets the pyramid resolutions to 0 (no pyramid generation)
                 if args.pyramid_resolutions == 0:
@@ -346,17 +369,13 @@ if __name__ == '__main__':
                                     score = ssim(testImg[i], imgPlane)
                                     
                                     if score != 1:
-                                        with open(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'), 'a') as f:
-                                            writer = csv.writer(f)
-                                            writer.writerow([tiles_path, f"Stitched image is not exactly the same as the Mosaic TIFF image. The ssim score is {score}."])
+                                        logging.error(f"{tiles_path},Stitched image is not exactly the same as the Mosaic TIFF image. The ssim score is {score}.")
                                         break
 
                                     i +=1 
 
                         if not mosTiffFound:
-                            with open(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'), 'a') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([tiles_path, f"Mosaic TIFF image was not found for this image so a comparison is not made and the stitched image is not saved."])
+                            logging.error(f"{tiles_path},Mosaic TIFF image was not found for this image so a comparison is not made and the stitched image is not saved.")
 
                 else:
                     
@@ -379,7 +398,7 @@ if __name__ == '__main__':
 
             
 
-                logging.debug("Stitching and saving the directory took --- %s seconds ---\n" % (time.time() - startTimeImage))
+                logging.debug("Stitching and saving the entire image took --- %s seconds ---\n" % (time.time() - startTimeImage))
 
             else:
                 logging.debug(f"The number of overlapping pixels between tiles is not 16. Please check the image again.")
@@ -388,14 +407,9 @@ if __name__ == '__main__':
                 
 
         except Exception as e:
-            logging.error(f"Error: {e}")
-            logging.error(f"Failed to stitch the tiles in the directory {tiles_path}. Check for issues.\n")
 
-            with open(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'), 'a') as f:
-                writer = csv.writer(f)
-                writer.writerow([tiles_path, f"Can't determine overlap (Problem with stitching): {e}"])
-    
-    
+            logging.error(f"{tiles_path},Failed to stitch tiles or save image as OME-TIFF in the directory. {e}\n")
+
     
     
 
