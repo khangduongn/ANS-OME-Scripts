@@ -20,6 +20,7 @@ Future Improvements:
     TODO: Add some error messages for when the user enters invalid parameters
     TODO: Allow user to set location of the flagged csv file containing problematic images
 
+    NOTE: This script assumes that each tile has the same size
 '''
 
 #import modules
@@ -36,7 +37,7 @@ import glob
 from math import floor
 import csv
 from skimage.metrics import structural_similarity as ssim
-
+from concurrent.futures import ThreadPoolExecutor
 
 parser = argparse.ArgumentParser(description = 'Stitch tiles and save as OME-TIFF')
 
@@ -53,6 +54,38 @@ parser.add_argument('-d','--debug', action='store_true', required=False, help='E
 
 args = parser.parse_args()
 
+def insert_tile(img_stitched, tiles_path, tileNumber, tilesize_x, tilesize_y, R, Rmax, C, Cmax, Z, ext, overlap ):
+    
+    if '.tif' in ext:
+        tile = tifffile.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext))
+
+    else:
+        tile = cv2.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext), cv2.IMREAD_UNCHANGED)
+
+    
+
+    if (R == Rmax):
+        yRange = slice(R * (tilesize_y - overlap), (R + 1) * (tilesize_y - overlap) + overlap)
+    else:
+        yRange = slice(R * (tilesize_y - overlap), (R + 1) * (tilesize_y - overlap))
+        tile = tile[0:(tilesize_y - overlap), :]
+
+    if (R % 2 == 0):
+
+        if (C == Cmax):
+            xRange = slice(C * (tilesize_x - overlap), (C + 1) * (tilesize_x - overlap) + overlap)
+        else:
+            xRange = slice(C * (tilesize_x - overlap), (C + 1) * (tilesize_x - overlap))
+            tile = tile[:, 0:(tilesize_x - overlap)]
+    else:
+
+        if (C == 0):
+            xRange = slice(0, tilesize_x)
+        else:
+            xRange = slice((C - 1) * (tilesize_x - overlap) + tilesize_x, (C) * (tilesize_x - overlap) + tilesize_x)
+            tile = tile[:, overlap:tilesize_x]
+
+    img_stitched[Z, yRange, xRange]  = tile
 
 def stitch_tiles(tiles_path, output_path):
     '''
@@ -83,16 +116,17 @@ def stitch_tiles(tiles_path, output_path):
 
     #these columns are hardcoded assuming that the columns of XYZPositions.txt file stay the same
     #change these if necessary
-    X_col, Y_col, R_col, C_col, Z_col, No_col = XYZdata.columns[1], XYZdata.columns[2], XYZdata.columns[4], XYZdata.columns[5], XYZdata.columns[7], XYZdata.columns[0] 
+    X_col, Y_col, R_col, C_col, Z_col = XYZdata.columns[1], XYZdata.columns[2], XYZdata.columns[4], XYZdata.columns[5], XYZdata.columns[7]
 
     wMicrons, hMicrons, tile_xsize, tile_ysize = XYZdata[XYZdata.columns[8]][0], XYZdata[XYZdata.columns[9]][0], XYZdata[XYZdata.columns[10]][0], XYZdata[XYZdata.columns[11]][0]
 
 
     R_min, C_min, Z_min = np.min(XYZdata[R_col]), np.min(XYZdata[C_col]), np.min(XYZdata[Z_col])
-
+    R_max = np.max(XYZdata[R_col])
+    C_max = np.max(XYZdata[C_col])
     nx, ny, nz = len(XYZdata[C_col].unique()), len(XYZdata[R_col].unique()), len(XYZdata[Z_col].unique())
 
-
+    Zs_list = sorted(XYZdata[Z_col].unique())
 
     #get the file extension of the tiles by finding the most common file extension in the folder
     files_ext = [os.path.splitext(file)[1] for file in os.listdir(tiles_path) if file.startswith('Tile')]
@@ -176,61 +210,14 @@ def stitch_tiles(tiles_path, output_path):
     #store image data to the memory mapped file
     img_stitched = np.memmap(filename, dtype='uint8', mode='w+', shape=img_shape)
 
-    #the tiles are stitched in a snake like manner. Alternating from Left to right and right to left for each row. Move from top to bottom.
-    #for each z plane
-    for nzi in range(nz):
+    # Number of threads to use
+    num_threads = 3
 
-        count_y = 0
+    # Use ThreadPoolExecutor to apply the function to DataFrame rows in parallel
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        # Submit tasks for each row and get futures
+        [executor.submit(insert_tile, img_stitched, tiles_path, XYZdata.iloc[i, 0], tile_xsize, tile_ysize, XYZdata.iloc[i, 4], R_max, XYZdata.iloc[i, 5], C_max,  Zs_list.index(XYZdata.iloc[i, 7]), ext, overlap) for i in range(len(XYZdata))]
 
-        #for each row of the image (y direction)
-        for nyi in range(0, stitched_y-overlap, tile_ysize - overlap):
-        
-
-            if count_y % 2 == 0:
-
-                #when count_y is even, iterate forwards (stitch image from left to right)
-                count_x = 0
-
-                
-                iterate_range = range(0,stitched_x-overlap, tile_xsize - overlap)
-
-                incrementValue = 1
-            else:
-
-                #when count_y is odd, iterate backwards (stitch image from right to left)
-
-                count_x = XYZdata[C_col].max()
-
-                iterate_range = range(stitched_x-tile_xsize, -1, -(tile_xsize - overlap))
-
-                incrementValue = -1
-                
-            #for each column of the image (x direction)
-            for nxi in iterate_range:
-    
-                
-                try:
-                    tile_num = None
-                    tile_num = int(XYZdata[No_col].loc[(XYZdata[R_col] == count_y + R_min) & (XYZdata[C_col] == count_x + C_min) & (XYZdata[Z_col] == nzi + Z_min)].values)
-        
-                    if '.tif' in ext:
-                        tile = tifffile.imread(os.path.join(tiles_path, f'Tile{str(tile_num).zfill(6)}' + ext))
-
-                    else:
-                        tile = cv2.imread(os.path.join(tiles_path, f'Tile{str(tile_num).zfill(6)}' + ext), cv2.IMREAD_UNCHANGED)
-
-                except:
-                    if tile_num is not None:
-                        print(f'Error reading tile number {tile_num}. This tile will be replaced with a white image. Check to make sure the tile exists and is not corrupted.')
-                
-                    tile = np.ones([tile_ysize, tile_xsize], dtype=np.uint8)*255
-                
-    
-                img_stitched[nzi, nyi:nyi+tile_ysize, nxi:nxi + tile_xsize]  = tile
-
-                count_x = count_x + incrementValue
-
-            count_y +=1 
     
     img_stitched.flush()
 
