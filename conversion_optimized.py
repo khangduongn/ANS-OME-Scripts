@@ -11,16 +11,19 @@ Description:
     with multiple z planes
 
 Future Improvements:
-    TODO: Validate inputs fixes
-    TODO: May need to add support for multiple image stitching. Multiprocessing of images
-    TODO: This script only works for grayscale images. Need to add support for other image types
-    TODO: This script only works for the following compression types: None, JPEG, JPEG2000 (Lossy and Lossless). Add support for other types
-   
-    TODO: Add support for reading different tile file format and RGB images
-    TODO: Add some error messages for when the user enters invalid parameters
-    TODO: Allow user to set location of the flagged csv file containing problematic images
+    TODO: Low Priority: Validate inputs fixes
+    TODO: Low Priority: May need to add support for multiple image stitching. Multiprocessing of images
+    TODO: Low Priority: This script only works for grayscale images. Need to add support for other image types
+    TODO: Low Priority: This script only works for the following compression types: None, JPEG, JPEG2000 (Lossy and Lossless). Add support for other types
+    TODO: Low Priority: Add support for reading different tile file format and RGB images
+    TODO: Low Priority: Add some error messages for when the user enters invalid parameters
+    TODO: Low Priority: Allow user to set location of the flagged csv file containing problematic images
 
     TODO: IMPORTANT! Check if script can detect images with multiple tiles that share the same row and column
+    TODO: IMPORTANT! Fix error handling
+    TODO: IMPORTANT! Add option to set number of workers
+    
+
     NOTE: This script assumes that each tile has the same size
 '''
 
@@ -59,36 +62,39 @@ args = parser.parse_args()
 
 def insert_tile(img_stitched, tiles_path, tileNumber, tilesize_x, tilesize_y, R, Rmax, C, Cmax, Z, ext, overlap ):
     
-    if '.tif' in ext:
-        tile = tifffile.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext))
+    #TODO: ERROR HANDLE. Need Testing
+    try:
+        if '.tif' in ext:
+            tile = tifffile.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext))
 
-    else:
-        tile = cv2.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext), cv2.IMREAD_UNCHANGED)
-
+        else:
+            tile = cv2.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext), cv2.IMREAD_UNCHANGED)
     
-
-    if (R == Rmax):
-        yRange = slice(R * (tilesize_y - overlap), (R + 1) * (tilesize_y - overlap) + overlap)
-    else:
-        yRange = slice(R * (tilesize_y - overlap), (R + 1) * (tilesize_y - overlap))
-        tile = tile[0:(tilesize_y - overlap), :]
-
-    if (R % 2 == 0):
-
-        if (C == Cmax):
-            xRange = slice(C * (tilesize_x - overlap), (C + 1) * (tilesize_x - overlap) + overlap)
+        if (R == Rmax):
+            yRange = slice(R * (tilesize_y - overlap), (R + 1) * (tilesize_y - overlap) + overlap)
         else:
-            xRange = slice(C * (tilesize_x - overlap), (C + 1) * (tilesize_x - overlap))
-            tile = tile[:, 0:(tilesize_x - overlap)]
-    else:
+            yRange = slice(R * (tilesize_y - overlap), (R + 1) * (tilesize_y - overlap))
+            tile = tile[0:(tilesize_y - overlap), :]
 
-        if (C == 0):
-            xRange = slice(0, tilesize_x)
+        if (R % 2 == 0):
+
+            if (C == Cmax):
+                xRange = slice(C * (tilesize_x - overlap), (C + 1) * (tilesize_x - overlap) + overlap)
+            else:
+                xRange = slice(C * (tilesize_x - overlap), (C + 1) * (tilesize_x - overlap))
+                tile = tile[:, 0:(tilesize_x - overlap)]
         else:
-            xRange = slice((C - 1) * (tilesize_x - overlap) + tilesize_x, (C) * (tilesize_x - overlap) + tilesize_x)
-            tile = tile[:, overlap:tilesize_x]
 
-    img_stitched[Z, yRange, xRange]  = tile
+            if (C == 0):
+                xRange = slice(0, tilesize_x)
+            else:
+                xRange = slice((C - 1) * (tilesize_x - overlap) + tilesize_x, (C) * (tilesize_x - overlap) + tilesize_x)
+                tile = tile[:, overlap:tilesize_x]
+
+        img_stitched[Z, yRange, xRange]  = tile
+
+    except Exception as e:
+        logging.error(f"{tiles_path},Tile {tileNumber} could not be read or inserted into stitched image. A black tile is used as replacement. Please check error message for more information and don't use this image for production. {e}")
 
 def stitch_tiles(tiles_path, output_path):
     '''
@@ -107,7 +113,7 @@ def stitch_tiles(tiles_path, output_path):
 
     startTimeStitch = time.time()
     
-    logging.debug(f'Begin stitching {tiles_path}')
+    logging.info(f'Begin stitching {tiles_path}')
 
     #try to read the tile information from XYZPositions.txt file
     try:
@@ -159,10 +165,10 @@ def stitch_tiles(tiles_path, output_path):
 
         overlap_x = round(resolution * overlapMicrons)
         
-        logging.debug(f'X step: {x_step}')
-        logging.debug(f'X overlap (um): {overlapMicrons}')
-        logging.debug(f'X resolution (px/um): {resolution}')
-        logging.debug(f'X overlap (px): {overlap_x}')
+        logging.info(f'X step: {x_step}')
+        logging.info(f'X overlap (um): {overlapMicrons}')
+        logging.info(f'X resolution (px/um): {resolution}')
+        logging.info(f'X overlap (px): {overlap_x}')
 
 
 
@@ -184,10 +190,10 @@ def stitch_tiles(tiles_path, output_path):
         resolution = tile_ysize / hMicrons
 
         overlap_y = round(resolution * overlapMicrons)
-        logging.debug(f'Y step: {y_step}')
-        logging.debug(f'Y overlap (um): {overlapMicrons}')
-        logging.debug(f'Y resolution (px/um): {resolution}')
-        logging.debug(f'Y overlap (px): {overlap_y}')
+        logging.info(f'Y step: {y_step}')
+        logging.info(f'Y overlap (um): {overlapMicrons}')
+        logging.info(f'Y resolution (px/um): {resolution}')
+        logging.info(f'Y overlap (px): {overlap_y}')
 
         if overlap_x == 16 and overlap_y == 16:
             
@@ -229,9 +235,9 @@ def stitch_tiles(tiles_path, output_path):
 
     del img_stitched
 
-    logging.debug(f"The shape of the final image is (z, y, x) = {img_shape}")
+    logging.info(f"The shape of the final image is (z, y, x) = {img_shape}")
 
-    logging.debug("Stitching the tiles took --- %s seconds ---" % (time.time() - startTimeStitch))
+    logging.info("Stitching the tiles took --- %s seconds ---" % (time.time() - startTimeStitch))
 
 
     return filename, img_shape, wMicrons/tile_xsize, hMicrons/tile_ysize
@@ -344,7 +350,7 @@ if __name__ == '__main__':
                 images = np.memmap(temp_filename, dtype='uint8', mode='r', shape = img_shape)
 
 
-                logging.debug('Begin saving image as OME-TIFF')
+                logging.info('Begin saving image as OME-TIFF')
 
                 #if the user sets the pyramid resolutions to 0 (no pyramid generation)
                 if args.pyramid_resolutions == 0:
@@ -398,11 +404,11 @@ if __name__ == '__main__':
 
             
 
-                logging.debug("Stitching and saving the entire image took --- %s seconds ---\n" % (time.time() - startTimeImage))
+                logging.info("Stitching and saving the entire image took --- %s seconds ---\n" % (time.time() - startTimeImage))
 
             else:
-                logging.debug(f"The number of overlapping pixels between tiles is not 16. Please check the image again.")
-                logging.debug("This process took --- %s seconds ---\n" % (time.time() - startTimeImage))
+                logging.info(f"The number of overlapping pixels between tiles is not 16. Please check the image again.")
+                logging.info("This process took --- %s seconds ---\n" % (time.time() - startTimeImage))
                 
                 
 
@@ -413,4 +419,4 @@ if __name__ == '__main__':
     
     
 
-    logging.debug("This script took --- %s seconds ---\n\n\n" % (time.time() - startTimeScript))
+    logging.info("This script took --- %s seconds ---\n\n\n" % (time.time() - startTimeScript))
