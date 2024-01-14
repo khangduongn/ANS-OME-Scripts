@@ -22,7 +22,7 @@ Future Improvements:
     TODO: IMPORTANT! Check if script can detect images with multiple tiles that share the same row and column
     TODO: IMPORTANT! Fix error handling
     TODO: IMPORTANT! Add option to set number of workers
-    
+    TODO: IMPORTANT! Test the error handling for problems with inserting tile
 
     NOTE: This script assumes that each tile has the same size
 '''
@@ -94,7 +94,7 @@ def insert_tile(img_stitched, tiles_path, tileNumber, tilesize_x, tilesize_y, R,
         img_stitched[Z, yRange, xRange]  = tile
 
     except Exception as e:
-        logging.error(f"{tiles_path},Tile {tileNumber} could not be read or inserted into stitched image. A black tile is used as replacement. Please check error message for more information and don't use this image for production. {e}")
+        logging.error(f"{tiles_path},Tile {tileNumber} could not be read or inserted into stitched image. A black tile is used as replacement. Please check error message for more information and don't use this image for production: {e}")
 
 def stitch_tiles(tiles_path, output_path):
     '''
@@ -180,10 +180,9 @@ def stitch_tiles(tiles_path, output_path):
 
         y_step = float(y_final[0]-y_init[0])
 
-        if (len(y_final) != 1) or (len(y_init) != 1) or (len(x_final) != 1) or (len(x_init) != 1):
-            logging.error(f"{tiles_path},There are two or more tiles that belong to the same row and column.")
+        if (len(y_final) != 1) or (len(y_init) != 1) or (len(x_final) != 1) or (len(x_init) != 1):  
 
-            return 'Flagged'
+            raise Exception("There are two or more tiles that belong to the same row and column.")
     
         overlapMicrons = hMicrons - y_step
 
@@ -201,9 +200,7 @@ def stitch_tiles(tiles_path, output_path):
 
         else: 
             
-            logging.error(f"{tiles_path},Number of pixels of overlap in the x and y directions is not 16. It is {overlap_x} in the x direction and {overlap_y} in the y direction.")
-
-            return 'Flagged'
+            raise Exception(f"Number of pixels of overlap in the x and y directions is not 16. It is {overlap_x} in the x direction and {overlap_y} in the y direction.")
     
         
 
@@ -414,7 +411,7 @@ if __name__ == '__main__':
 
         except Exception as e:
 
-            logging.error(f"{tiles_path},Failed to stitch tiles or save image as OME-TIFF in the directory. {e}\n")
+            logging.error(f"{tiles_path},{e}\n")
 
     
     
