@@ -20,6 +20,7 @@ Future Improvements:
     TODO: Add some error messages for when the user enters invalid parameters
     TODO: Allow user to set location of the flagged csv file containing problematic images
 
+    TODO: IMPORTANT! Check if script can detect images with multiple tiles that share the same row and column
     NOTE: This script assumes that each tile has the same size
 '''
 
@@ -38,6 +39,7 @@ from math import floor
 import csv
 from skimage.metrics import structural_similarity as ssim
 from concurrent.futures import ThreadPoolExecutor
+import logging
 
 parser = argparse.ArgumentParser(description = 'Stitch tiles and save as OME-TIFF')
 
@@ -49,6 +51,7 @@ parser.add_argument('-pr', '--pyramid-resolutions', type=int, default=3, metavar
 parser.add_argument('-ps', '--pyramid-scale', type=int, default=4, metavar='', required=False, help='Pyramid scale (Default: 4)')
 parser.add_argument('-t', '--tile-size', type=int, nargs=2, default = [256,256], metavar=('xPixels', 'yPixels'), required=False, help='Tile size')
 parser.add_argument('-bg','--bigtiff', action='store_true', required=False, help='Save the output image as BigTiff')
+parser.add_argument('-v','--verbose', action='store_true', required=False, help='Enable verbose mode (Prints out information as the script is running)')
 parser.add_argument('-d','--debug', action='store_true', required=False, help='Enable debug mode (Helps to determine if stitching worked correctly)')
 
 
@@ -104,7 +107,7 @@ def stitch_tiles(tiles_path, output_path):
 
     startTimeStitch = time.time()
     
-    print(f'Begin stitching {tiles_path}')
+    logging.debug(f'Begin stitching {tiles_path}')
 
     #try to read the tile information from XYZPositions.txt file
     try:
@@ -146,8 +149,9 @@ def stitch_tiles(tiles_path, output_path):
 
         x_init = XYZdata[X_col].loc[(XYZdata[C_col] == min_C) & (XYZdata[Z_col] == Z_min) & (XYZdata[R_col] == R_min)].values
         x_final = XYZdata[X_col].loc[(XYZdata[C_col] == min_C+1) & (XYZdata[Z_col] == Z_min) & (XYZdata[R_col] == R_min)].values
-    
-        x_step = float(x_final-x_init)
+
+        
+        x_step = float(x_final[0]-x_init[0])
 
         overlapMicrons = wMicrons - x_step
 
@@ -155,10 +159,10 @@ def stitch_tiles(tiles_path, output_path):
 
         overlap_x = round(resolution * overlapMicrons)
         
-        print('X step:', x_step)
-        print('X overlap (um):', overlapMicrons)
-        print('X resolution (px/um)', resolution)
-        print('X overlap (px)', overlap_x)
+        logging.debug(f'X step: {x_step}')
+        logging.debug(f'X overlap (um): {overlapMicrons}')
+        logging.debug(f'X resolution (px/um): {resolution}')
+        logging.debug(f'X overlap (px): {overlap_x}')
 
 
 
@@ -168,18 +172,24 @@ def stitch_tiles(tiles_path, output_path):
         y_init = XYZdata[Y_col].loc[(XYZdata[C_col] == C_min) & (XYZdata[Z_col] == Z_min) & (XYZdata[R_col] == min_R)].values
         y_final = XYZdata[Y_col].loc[(XYZdata[C_col] == C_min) & (XYZdata[Z_col] == Z_min) & (XYZdata[R_col] == min_R+1)].values
 
-        y_step = float(y_final-y_init)
+        y_step = float(y_final[0]-y_init[0])
 
+        if (len(y_final) != 1) or (len(y_init) != 1) or (len(x_final) != 1) or (len(x_init) != 1):
+            with open(os.path.join(output_path, 'flagged_images.csv'), 'a') as f:
+                writer = csv.writer(f)
+                writer.writerow([tiles_path, 'There are two or more tiles that belong to the same row and column.'])
+
+            return 'Flagged'
     
         overlapMicrons = hMicrons - y_step
 
         resolution = tile_ysize / hMicrons
 
         overlap_y = round(resolution * overlapMicrons)
-        print('Y step:', y_step)
-        print('Y overlap (um):', overlapMicrons)
-        print('Y resolution (px/um)', resolution)
-        print('Y overlap (px)', overlap_y)
+        logging.debug(f'Y step: {y_step}')
+        logging.debug(f'Y overlap (um): {overlapMicrons}')
+        logging.debug(f'Y resolution (px/um): {resolution}')
+        logging.debug(f'Y overlap (px): {overlap_y}')
 
         if overlap_x == 16 and overlap_y == 16:
             
@@ -223,9 +233,9 @@ def stitch_tiles(tiles_path, output_path):
 
     del img_stitched
 
-    print("The shape of the final image is (z, y, x) =", img_shape)
+    logging.debug(f"The shape of the final image is (z, y, x) = {img_shape}")
 
-    print("Stitching the tiles took --- %s seconds ---" % (time.time() - startTimeStitch))
+    logging.debug("Stitching the tiles took --- %s seconds ---" % (time.time() - startTimeStitch))
 
 
     return filename, img_shape, wMicrons/tile_xsize, hMicrons/tile_ysize
@@ -255,7 +265,8 @@ def validateCompression(compression, quality_factor):
 
 if __name__ == '__main__':
 
-
+    loggingLevel = logging.DEBUG if args.verbose else logging.WARNING
+    logging.basicConfig(level=loggingLevel)
 
     startTimeScript = time.time()
 
@@ -310,7 +321,7 @@ if __name__ == '__main__':
                 images = np.memmap(temp_filename, dtype='uint8', mode='r', shape = img_shape)
 
 
-                print('Begin saving images as OME-TIFF')
+                logging.debug('Begin saving images as OME-TIFF')
 
                 #if the user sets the pyramid resolutions to 0 (no pyramid generation)
                 if args.pyramid_resolutions == 0:
@@ -368,27 +379,24 @@ if __name__ == '__main__':
 
             
 
-                print("Stitching and saving the directory took --- %s seconds ---" % (time.time() - startTimeImage))
-                print()
+                logging.debug("Stitching and saving the directory took --- %s seconds ---\n" % (time.time() - startTimeImage))
 
             else:
-                print(f"The number of overlapping pixels between tiles is not 16. Please check the image again.")
-                print("This process took --- %s seconds ---" % (time.time() - startTimeImage))
-                print()
+                logging.debug(f"The number of overlapping pixels between tiles is not 16. Please check the image again.")
+                logging.debug("This process took --- %s seconds ---\n" % (time.time() - startTimeImage))
+                
                 
 
         except Exception as e:
-            print(f"Error: {e}")
-            print(f"Failed to stitch the tiles in the directory {tiles_path}. Check for issues.", end = '\n')
+            logging.error(f"Error: {e}")
+            logging.error(f"Failed to stitch the tiles in the directory {tiles_path}. Check for issues.\n")
+
             with open(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'), 'a') as f:
                 writer = csv.writer(f)
-                writer.writerow([tiles_path, "Can't determine overlap (Problem with stitching)"])
+                writer.writerow([tiles_path, f"Can't determine overlap (Problem with stitching): {e}"])
     
     
     
     
 
-    print("This script took --- %s seconds ---" % (time.time() - startTimeScript), end = ' ')
-    print()
-    print()
-    print()
+    logging.debug("This script took --- %s seconds ---\n\n\n" % (time.time() - startTimeScript))
