@@ -3,7 +3,7 @@ Author:
     Khang Duong
 
 Last Updated: 
-    2/7/2024
+    2/12/2024
 
 Description: 
     This script allows the user to stitch a collection of image tiles into a mosaic image and save this mosaic
