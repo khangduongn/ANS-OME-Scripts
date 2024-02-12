@@ -39,7 +39,7 @@ import pandas as pd
 import uuid
 import glob
 from math import floor
-import csv
+import sys
 from skimage.metrics import structural_similarity as ssim
 from concurrent.futures import ThreadPoolExecutor
 import logging
@@ -258,7 +258,8 @@ def validateCompression(compression, quality_factor):
 
     else:
 
-        raise Exception("Invalid compression schema or quality factor. Please check your input again")
+        print("Invalid compression schema or quality factor. Please check your input again", file = sys.stderr)
+        exit(1)
     
 
 
@@ -296,9 +297,15 @@ if __name__ == '__main__':
     
     startTimeScript = time.time()
 
-    #TODO: validate this input so that users cant put negative numbers
     #store the input tile size into designated variables
     tileSizeX, tileSizeY = args.tile_size
+
+    if tileSizeX <= 0:
+        print("Invalid x tile size. Must provide a positive number", file = sys.stderr)
+        exit(1)
+    elif tileSizeY <= 0:
+        print("Invalid y tile size. Must provide a positive number", file = sys.stderr)
+        exit(1)
 
     #validate the compression and quality factor inputs and return the compression parameter that will be passed to tifffile
     compression_parameter = validateCompression(args.compression, args.quality) 
@@ -315,8 +322,9 @@ if __name__ == '__main__':
     #if there are no paths stored in the list image_paths (aka no XYZPositions.txt or instruction to stitch to be found)
     if len(image_paths) == 0:
 
-        #then raise an error.
-        raise Exception('No XYZPositions.txt file to be found. Make sure this file is in the same directory with the tiles you want to stitch')
+        #print error and exit
+        print('No XYZPositions.txt file to be found. Make sure this file is in the same directory with the tiles you want to stitch', file = sys.stderr)
+        exit(1)
     
     outputExtension = '.ome.tiff'
 
@@ -410,6 +418,11 @@ if __name__ == '__main__':
                 
 
         except Exception as e:
+
+            if ('temp_filename' in locals()) or ('temp_filename' in globals()):
+
+                #remove the temp memory mapped file
+                os.remove(temp_filename)
 
             logging.error(f"{tiles_path},{e}\n")
 
