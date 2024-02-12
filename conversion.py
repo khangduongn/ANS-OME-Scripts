@@ -404,8 +404,10 @@ if __name__ == '__main__':
                                 
                             tif.write(np.stack([cv2.resize(images[n, :, :], (floor(img_shape[2] * (1/args.pyramid_scale)**(x+1)), floor(img_shape[1] * (1/args.pyramid_scale)**(x+1))),interpolation=cv2.INTER_LINEAR) for n in range(len(images))]), subfiletype=1, **options)
 
-                #remove the temp memory mapped file
-                os.remove(temp_filename)
+                if os.path.isfile(temp_filename):
+
+                    #remove the temp memory mapped file
+                    os.remove(temp_filename)
 
             
 
@@ -420,9 +422,11 @@ if __name__ == '__main__':
         except Exception as e:
 
             if ('temp_filename' in locals()) or ('temp_filename' in globals()):
+                
+                if os.path.isfile(temp_filename):
 
-                #remove the temp memory mapped file
-                os.remove(temp_filename)
+                    #remove the temp memory mapped file
+                    os.remove(temp_filename)
 
             logging.error(f"{tiles_path},{e}\n")
 
