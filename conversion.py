@@ -3,7 +3,7 @@ Author:
     Khang Duong
 
 Last Updated: 
-    2/12/2024
+    2/21/2024
 
 Description: 
     This script allows the user to stitch a collection of image tiles into a mosaic image and save this mosaic
@@ -220,7 +220,7 @@ def stitch_tiles(tiles_path, output_path):
     img_stitched = np.memmap(filename, dtype='uint8', mode='w+', shape=img_shape)
 
     # Number of threads to use
-    num_threads = 3
+    num_threads = 8
 
     # Use ThreadPoolExecutor to apply the function to DataFrame rows in parallel
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -270,7 +270,7 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
 
     # add a file handler and ensure that all error messages are logged to file
-    fileHandler = logging.FileHandler(os.path.join(os.path.dirname(args.output_dir), 'flagged_images.csv'))
+    fileHandler = logging.FileHandler(os.path.join(args.output_dir, 'flagged_images.csv'))
     fileHandler.setLevel(logging.ERROR) 
 
     # create a formatter and set the formatter for the handler
