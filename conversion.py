@@ -3,28 +3,28 @@ Author:
     Khang Duong
 
 Last Updated: 
-    2/21/2024
+    4/5/2024
 
 Description: 
-    This script allows the user to stitch a collection of image tiles into a mosaic image and save this mosaic
+    This script allows the user to stitch a collection of TIF image tiles into a mosaic image and save this mosaic
     image as an OME-TIFF file that can be imported into OMERO for viewing. This script also works for images
-    with multiple z planes
+    with multiple z planes.
 
 Future Improvements:
-    TODO: Low Priority: Validate inputs fixes
-    TODO: Low Priority: May need to add support for multiple image stitching. Multiprocessing of images
-    TODO: Low Priority: This script only works for grayscale images. Need to add support for other image types
-    TODO: Low Priority: This script only works for the following compression types: None, JPEG, JPEG2000 (Lossy and Lossless). Add support for other types
-    TODO: Low Priority: Add support for reading different tile file format and RGB images
-    TODO: Low Priority: Add some error messages for when the user enters invalid parameters
-    TODO: Low Priority: Allow user to set location of the flagged csv file containing problematic images
+    TODO: Low Priority: Validate inputs (Add more error messages/checking for when the user enters invalid arguments)
+    TODO: Low Priority: Multiprocessing of images (currently, only one image is being stitched at a time)
+    TODO: Low Priority: This script only works for the following compression types: None, JPEG, JPEG2000 (Lossy and Lossless). Add support for other types if needed
+    TODO: Low Priority: Allow user to set location of the flagged csv file containing problematic images (currently, the flagged csv file is created in the same directory as the full stitched images)
 
-    TODO: IMPORTANT! Check if script can detect images with multiple tiles that share the same row and column
-    TODO: IMPORTANT! Fix error handling
-    TODO: IMPORTANT! Add option to set number of workers
-    TODO: IMPORTANT! Test the error handling for problems with inserting tile
+    TODO: Medium Priority: Add option to set number of workers for multithreading
 
-    NOTE: This script assumes that each tile has the same size
+    TODO: High Priority: Check if script can detect images with multiple tiles that share the same row and column
+    TODO: High Priority: Add/Fix error handling
+    TODO: High Priority: Test the error handling for problems with inserting tile
+
+    NOTE: This script assumes that each tile has the same size and that the instruction for stitching the tiles comes from the XYZPositions.txt file, which must be in the same directory as the tiles of the image you want to stitch.
+    NOTE: This script assumes that each tile has a unique R, C, Z position designated in the XYZPositions.txt file. If more than one tile has the same R, C, Z position, this may cause errors when stitching.
+    NOTE: This script only works on grayscale .tif tile images.
 '''
 
 #import modules
