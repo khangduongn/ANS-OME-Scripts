@@ -16,7 +16,7 @@ You can install all of the dependencies (modules) required to run the script int
 
 `pip3 install -r requirements.txt`
 
-Cd into the directory with the script and ensure that the current Python environment you are in has the necessary dependices to run the script. Run the script using the following command:
+Navigate into the directory with the script and ensure that the current Python environment you are in has the necessary dependencies to run the script. Run the script using the following command:
 
 `python3 conversion.py -h`
 
