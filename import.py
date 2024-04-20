@@ -4,7 +4,6 @@ import argparse
 # import yaml
 import csv
 import subprocess
-import glob
 import sys
 import json
 
@@ -82,32 +81,32 @@ if __name__=='__main__':
         print("Error: A project must have a dataset. Please also provide the name of a dataset to import to.", file = sys.stderr)
         exit(1)
 
-    #bind_mounts = get_container_bind_mounts(args.container_name)
+    bind_mounts = get_container_bind_mounts(args.container_name)
 
     #no bind mounts found (bind mounts are needed for in-place import to Omero)
-    # if len(bind_mounts) == 0:
-    #     print("Error: No bind mounts found between the host server and the omero server docker container", file = sys.stderr)
-    #     exit(1)
+    if len(bind_mounts) == 0:
+        print("Error: No bind mounts found between the host server and the omero server docker container", file = sys.stderr)
+        exit(1)
 
-    bind_mounts = [{'Source': '/mnt/XLIN/', 'Destination': '/mnt/images/'}, {'Source': '/mnt/bye', 'Destination': '/mnt/images/'}]
+    #bind_mounts = [{'Source': '/mnt/XLIN/', 'Destination': '/mnt/images/'}, {'Source': '/mnt/bye', 'Destination': '/mnt/images/'}]
     
-    source = '/mnt/XLIN/new.ome.tiff/'
-    bind_mounts = []
-    print(apply_mount(bind_mounts,source))
+    
 
     if not (os.path.isfile(args.image_path) or os.path.isdir(args.image_path)) :
         print("Error: The image path provided is not a file or a directory of images", file = sys.stderr)
         exit(1)
+
+    image_path = apply_mount(bind_mounts, args.image_path)
     
     if args.project:
-        command = f'docker exec -it {args.container_name} /opt/omero/server/venv3/bin/omero --sudo {args.username} -u {args.username_target} -s localhost -w {args.password} import --transfer=ln_s -T Project:name:"{args.project}"/Dataset:name:"{args.dataset}" {args.image_path}'
+        command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero', '--sudo', args.username, '-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Project:name:{args.project}/Dataset:name:{args.dataset}', image_path]
     elif args.dataset:
-        command = f'docker exec -it {args.container_name} /opt/omero/server/venv3/bin/omero --sudo {args.username} -u {args.username_target} -s localhost -w {args.password} import --transfer=ln_s -T Dataset:name:"{args.dataset}" {args.image_path}'
+        command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero', '--sudo', args.username, '-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Dataset:name:{args.dataset}', image_path]
     else:
-        command = f'docker exec -it {args.container_name} /opt/omero/server/venv3/bin/omero --sudo {args.username} -u {args.username_target} -s localhost -w {args.password} import --transfer=ln_s {args.image_path}'
+        command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero', '--sudo', args.username, '-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', image_path]
 
     #run the command
-    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE)
     output, error = process.communicate()
 
     print("----------------ERROR-----------------")
