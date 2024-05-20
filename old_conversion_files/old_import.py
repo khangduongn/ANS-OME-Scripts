@@ -40,9 +40,6 @@ def get_container_bind_mounts(container_name):
                 "Destination": mount["Destination"]
             })
 
-    
-    #Example of a bind_mounts
-    #bind_mounts = [{'Source': '/mnt/XLIN/', 'Destination': '/mnt/images/'}, {'Source': '/mnt/bye', 'Destination': '/mnt/images2/'}]
     return bind_mounts
 
 def apply_mount(bind_mounts, path):
@@ -65,6 +62,29 @@ def is_valid_path_in_container(container_name, path):
         print(f"Error: Unable to determine if the provided path exists in the Omero server docker container. Please try again.", file=sys.stderr)
         exit(1)
 
+# def get_container_filepath(omeserver_volumes, file_path):
+#     '''
+#     This function takes in a list of bind mounts and the path of a file on the Docker host in order 
+#     to get the path of the file on the Docker container filesystem.
+#     '''
+
+#     for volume in omeserver_volumes:
+     
+
+#         if volume.split(':')[0] != 'omero':
+            
+#             rel = os.path.relpath(file_path, volume.split(':')[0])
+#             new_file_path = os.path.join(volume.split(':')[1], rel)
+
+#             # print(rel)
+#             # print(new_file_path)
+#             if not ('..' in new_file_path):
+  
+#                 return new_file_path
+
+    # raise Exception("Unable to get the file path")
+
+
 
 if __name__=='__main__':
 
@@ -80,13 +100,12 @@ if __name__=='__main__':
         print("Error: No bind mounts found between the host server and the Omero server docker container.", file = sys.stderr)
         exit(1)
 
+    #bind_mounts = [{'Source': '/mnt/XLIN/', 'Destination': '/mnt/images/'}, {'Source': '/mnt/bye', 'Destination': '/mnt/images/'}]
+    
+
     #apply the mount to the path so that it is a valid path in the Omero server docker container
     image_path = apply_mount(bind_mounts, args.image_path)
     
-    if image_path == None:
-        print("Error: The provided image path cannot be applied to any bind mounts on the Omero server docker container.", file = sys.stderr)
-        exit(1)
-
     #check if path is a valid path in the Omero server docker container
     if not is_valid_path_in_container(args.container_name, image_path):
         print("Error: The image path provided is not a file or a directory of images in the Omero server docker container", file = sys.stderr)
@@ -108,3 +127,104 @@ if __name__=='__main__':
     print(error)
     print("----------------OUTPUT-----------------")
     print(output)
+
+    #ex: /mnt/XLINUXDIATOMS
+    exit()
+    uploadTxtPaths = [os.path.join(args.upload_dir, file) for file in os.listdir(args.upload_dir) if os.path.isfile(os.path.join(args.upload_dir, file))]
+
+    #imgs = [f for f in glob.glob(os.path.join(args.img_dir, '**/*.ome.tiff'), recursive=True)]
+    
+    imgPaths = []
+
+    for uploadTxtPath in uploadTxtPaths:
+
+        with open(uploadTxtPath) as f:
+
+            for line in f.readlines():
+                imgPaths.append(line.rstrip())
+	
+   
+    
+   
+    #for each image path 
+    for img in imgPaths:
+
+        #print(img)
+        if not os.path.exists(img):
+            continue
+
+        #use the new image path to get the path of the image on the Docker container filesystem
+        img_path = get_container_filepath(omeserver_volumes, img)
+
+        #get the path of the csv file used to bulk import the images
+        notImportedCsvPathHost = os.path.join(args.output_dir, 'not_imported_images.csv')
+
+
+        importedImagesCsv = os.path.join(args.output_dir, 'imported_images.csv')
+
+        # open the file in append mode
+        with open(notImportedCsvPathHost, 'a') as f:
+
+            # create the csv writer
+            writer = csv.writer(f)
+
+            # write a row to the csv file
+            #first column is the image path in the Docker container filesystem
+            #second column is the Project and Dataset names that the image will reside
+            writer.writerow([img_path, f'Project:name:{args.project}/Dataset:name:{os.path.splitext(os.path.basename(img_path))[0]}'])
+
+        
+    print(notImportedCsvPathHost)
+    #get the path of the csv file in the Docker container filesystem
+    notImportedCsvPathContainer = get_container_filepath(omeserver_volumes, notImportedCsvPathHost)
+
+    
+    print(notImportedCsvPathContainer)
+    #generate dictionary used to write the bulk.yml file
+    data = dict(
+        transfer = 'ln_s',
+        path = f"{notImportedCsvPathContainer}",
+        columns = ['path', 'target']
+            
+    )
+
+    #create a path for the bulk.yml file on the Docker host
+    bulkYmlPathHost = os.path.join(args.output_dir, 'bulk.yml')
+
+    #create the bulk.yml file
+    with open(bulkYmlPathHost, 'w') as f:
+        yaml.dump(data, f, default_flow_style=False)
+    
+    #get the path of the bulk.yml file on the Docker container filesystem
+    bulkYmlPathContainer = get_container_filepath(omeserver_volumes, bulkYmlPathHost)
+
+    #with open(importedImagesCsv, 'r') as f1, open(notImportedCsvPathHost, 'r') as f2:
+    #    importedImages = f1.readlines()
+    #    newImages = f2.readlines()
+
+    #with open(notImportedCsvPathHost, 'w') as outFile:
+    #    for image_detail in newImages:
+    #        if image_detail not in importedImages:
+    #            outFile.write(image_detail)
+
+
+
+    #get the docker container name used for importing 
+    dockerContainerName = os.path.dirname(args.docker_compose).split('/')[-1] + '-omeroserver-1'
+
+    #generate the command used for importing the images to Omero
+    #NOTE: You may need to run this python file as sudo in order to run this command or else you may get an error
+    command = f'docker exec -it {dockerContainerName} /opt/omero/server/venv3/bin/omero --sudo {args.username} -u {args.username_target} -s localhost -w {args.password} import --bulk {bulkYmlPathContainer}'
+    
+    #run the command
+    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+
+    print("----------------ERROR-----------------")
+    print(error)
+    print("----------------OUTPUT-----------------")
+    print(output)
+ 
+    #remove the bulk import files
+    os.remove(bulkYmlPathHost)
+    os.remove(notImportedCsvPathHost)
