@@ -10,8 +10,8 @@ import json
 #parse arguments
 parser = argparse.ArgumentParser(description = 'Import images to Omero')
 parser.add_argument('-u', '--username', type=str, metavar='', required=True, help='Omero username that is importing the images (Recommend using an importer account to import for other users')
-parser.add_argument('-w', '--password', type=str, metavar='', required=True, help='Omero password for the importer user')
-parser.add_argument('-ut', '--username_target', type=str, metavar='', required=True, help='Omero username that is hosting the images on their page (not the importer). The images will be imported for this user.')
+parser.add_argument('-w', '--password', type=str, metavar='', required=True, help='Omero password for the user importing the images')
+parser.add_argument('-ut', '--username-target', type=str, metavar='', required=True, help='Omero username that is hosting the images on their page (could be the same as the importer). The images will be imported for this user and show up on their page.')
 parser.add_argument('-od', '--output-dir', type=str, metavar='', required=True, help='Path of the temp output files')
 parser.add_argument('-p', '--project', type=str, metavar='', required=False, help='Name of the Omero project that you want to import to' )
 parser.add_argument('-c', '--container-name', type=str, metavar='',  default='docker-omero-omeroserver-1', required=False, help='Path of the Docker compose file used to start the Omero containers')
@@ -92,13 +92,19 @@ if __name__=='__main__':
         print("Error: The image path provided is not a file or a directory of images in the Omero server docker container", file = sys.stderr)
         exit(1)
 
+
+    command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero']
+
+    #if the importer and the target user is not the same then add the command for the importer to have sudo permission to import images for another user
+    if args.username != args.username_target:
+        command.extend(['--sudo', args.username])
     
     if args.project:
-        command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero', '--sudo', args.username, '-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Project:name:{args.project}/Dataset:name:{args.dataset}', image_path]
+        command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Project:name:{args.project}/Dataset:name:{args.dataset}', image_path])
     elif args.dataset:
-        command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero', '--sudo', args.username, '-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Dataset:name:{args.dataset}', image_path]
+        command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Dataset:name:{args.dataset}', image_path])
     else:
-        command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero', '--sudo', args.username, '-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', image_path]
+        command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', image_path])
 
     #run the command
     process = subprocess.Popen(command, stdout=subprocess.PIPE)
