@@ -14,6 +14,7 @@ Future Improvements:
     TODO: Low Priority: Add a better way to display or save the output/error generated from the import (maybe saving to log file?)
     
     TODO: Medium Priority: Add option for the user to provide the project or dataset id instead of just the name for importing images to a project/dataset.
+    TODO: Medium Priority: Test some error handling
     
     NOTE: This script must run using sudo in order for the docker commands to work.
     NOTE: This import script uses in place import to import images mounted from the host server to the Omero server ran on a docker container. 
@@ -142,9 +143,6 @@ def is_valid_path_in_container(container_name: str, path: str) -> bool:
 
 #class for monitoring when there are new images in the image directory
 class NewImagesHandler(FileSystemEventHandler):
-    def __init__(self, import_script_args):
-        self.import_script_args = import_script_args
-
 
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith('.ome.tiff'):
@@ -153,6 +151,13 @@ class NewImagesHandler(FileSystemEventHandler):
 
 
     def import_image(self, image_path):
+        
+        #apply the mount to the path so that it is a valid path in the Omero server docker container
+        image_path = apply_mount(bind_mounts, image_path)
+        
+        if image_path == None:
+            logging.error("Error: The provided images path cannot be applied to any bind mounts on the Omero server docker container.")
+            return
 
         #starting generating the command for importing to Omero
         command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero']
@@ -248,15 +253,14 @@ if __name__=='__main__':
         exit(1)
 
 
-    new_images_handler = NewImagesHandler(args)
-
+    new_images_handler = NewImagesHandler()
 
     observer = Observer()
-    observer.schedule(new_images_handler, path=args.image_path, recursive=False)
+    observer.schedule(new_images_handler, path=args.images_path, recursive=False)
 
     #start the observer
     observer.start()
-    logging.info(f"Monitoring the directory {args.image_path} for new images")
+    logging.info(f"Monitoring the directory {args.images_path} for new images")
 
     try:
         while True:
