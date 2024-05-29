@@ -11,6 +11,8 @@ Description:
 
 Future Improvements:
     TODO: Low Priority: Add option for bulk-import (most likely not needed unless trying to automate large folders with converted images to specific projects/datasets for each image)
+    TODO: Low Priority: Add a better way to display or save the output/error generated from the import (maybe saving to log file?)
+    
     TODO: Medium Priority: Add option for the user to provide the project or dataset id instead of just the name for importing images to a project/dataset.
     
     NOTE: This script must run using sudo in order for the docker commands to work.
