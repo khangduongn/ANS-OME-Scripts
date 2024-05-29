@@ -60,12 +60,17 @@ def get_container_bind_mounts(container_name: str) -> list:
     #the command to check all bind mounts for the docker container
     cmd = ['docker', 'inspect', '-f', '{{ json .Mounts }}', container_name]
 
-    #grab the result from the command and convert it to json for easy processing
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    mounts_data = json.loads(result.stdout)
-
     #list to store the dictionaries of the bind mounts
     bind_mounts = []
+
+    try: 
+        #grab the result from the command and convert it to json for easy processing
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        mounts_data = json.loads(result.stdout)
+    
+    except:
+        #return empty list if error occurs when running the command
+        return bind_mounts
 
     #for each mount in the docker container
     for mount in mounts_data:
@@ -82,7 +87,7 @@ def get_container_bind_mounts(container_name: str) -> list:
     return bind_mounts
 
 
-def apply_mount(bind_mounts: list, path: str) -> (str | None):
+def apply_mount(bind_mounts: list, path: str):
     '''
     Description:
         This function takes the list of bind mounts and the path of the image(s) on the host server and converts the path to the appropriate path in the Omero server docker container.
@@ -134,35 +139,26 @@ def is_valid_path_in_container(container_name: str, path: str) -> bool:
 
 if __name__=='__main__':
 
-    # create logger
+    #create logger
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
 
-    # add a file handler and ensure that all error messages are logged to file
-    fileHandler = logging.FileHandler(os.path.join(args.output_dir, 'flagged_images.csv'))
-    fileHandler.setLevel(logging.ERROR) 
-
-    # create a formatter and set the formatter for the handler
-    formatting = logging.Formatter('%(message)s')
-    fileHandler.setFormatter(formatting)
-
-    # add the handler to the logger
-    logger.addHandler(fileHandler)
-
-    #if verbose is set, then output debug information and error messages to stdout
+    #if verbose is set, allow more information to be logged
     if args.verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        #otherwise only display errors/warnings
+        logger.setLevel(logging.WARNING)
 
-        #create a stream handler and ensure that all messages are printed to stdout
-        streamHandler = logging.StreamHandler()
-        streamHandler.setLevel(logging.DEBUG)
+    #create a stream handler and ensure that all messages are printed to stdout
+    streamHandler = logging.StreamHandler()
+    streamHandler.setLevel(logger.level)  
 
-        # create a formatter and set the formatter for the handler
-        formatter = logging.Formatter("%(levelname)-8s: %(message)s")
-        streamHandler.setFormatter(formatter)
-
-        # add the handler to the logger
-        logger.addHandler(streamHandler)
-
+    #create a formatter and set the formatter for the handler
+    formatter = logging.Formatter("%(levelname)-8s: %(message)s")
+    streamHandler.setFormatter(formatter)
+    
+    #add the handler to the logger
+    logger.addHandler(streamHandler)
     
     startTimeScript = time.time()
 
@@ -171,13 +167,17 @@ if __name__=='__main__':
         print("Error: A project must have a dataset. Please also provide the name of a dataset to import to.", file = sys.stderr)
         exit(1)
 
+    logging.info(f"Getting the list of bind mounts for the Docker container: {args.container_name}")
+
     #get the list of bind mounts using the name of the docker container that is hosting the Omero server
     bind_mounts = get_container_bind_mounts(args.container_name)
 
     #no bind mounts found (bind mounts are needed for in-place import to Omero)
     if len(bind_mounts) == 0:
-        print("Error: No bind mounts found between the host server and the Omero server docker container.", file = sys.stderr)
+        print("Error: No bind mounts found between the host server and the Omero server docker container. Check the container name to ensure that it is the correct name for the docker container is running the Omero server instance. Check that there are bind mounts by looking in the docker compose file.", file = sys.stderr)
         exit(1)
+
+    logging.info(f"Applying the bind mount to the image path: {args.image_path}")
 
     #apply the mount to the path so that it is a valid path in the Omero server docker container
     image_path = apply_mount(bind_mounts, args.image_path)
@@ -185,6 +185,8 @@ if __name__=='__main__':
     if image_path == None:
         print("Error: The provided image path cannot be applied to any bind mounts on the Omero server docker container.", file = sys.stderr)
         exit(1)
+
+    logging.info(f"The new image path on the Omero server docker container: {image_path}")
 
     #check if path is a valid path in the Omero server docker container
     if not is_valid_path_in_container(args.container_name, image_path):
@@ -210,14 +212,21 @@ if __name__=='__main__':
     else:
         command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', image_path])
 
+    logging.info("The command used to import the image(s): " + " ".join(command))
+
     #run the command
-    process = subprocess.Popen(command, stdout=subprocess.PIPE)
+    process = subprocess.Popen(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     output, error = process.communicate()
 
-    print("----------------ERROR-----------------")
-    print(error)
-    print("----------------OUTPUT-----------------")
-    print(output)
+    if (error):
+        error = error.decode().replace('\\r', '\r').replace('\\n', '\n').replace('\\t', '\t')
+        print("----------------ERROR-----------------")
+        print(error)
+    
+    if (output):
+        output = output.decode().replace('\\r', '\r').replace('\\n', '\n').replace('\\t', '\t')
+        print("----------------OUTPUT-----------------")
+        print(output)
 
     
     logging.info("This script took --- %s seconds ---\n\n\n" % (time.time() - startTimeScript))
