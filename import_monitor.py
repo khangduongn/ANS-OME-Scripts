@@ -147,8 +147,18 @@ class NewImagesHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith('.ome.tiff'):
             logging.info(f"New image detected in the folder: {event.src_path}. Importing the image to Omero.")
+            self.wait_for_completion(event.src_path)
             self.import_image(event.src_path)
 
+    def wait_for_completion(self, image_path):
+        logging.info(f"Waiting for the image to be completely saved and converted: {image_path}")
+
+        while True:
+            initial_size = os.path.getsize(image_path)
+            time.sleep(10)
+            current_size = os.path.getsize(image_path)
+            if initial_size == current_size:
+                break
 
     def import_image(self, image_path):
         
@@ -204,7 +214,7 @@ if __name__=='__main__':
 
     #if verbose is set, allow more information to be logged
     if args.verbose:
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
     else:
         #otherwise only display errors/warnings
         logger.setLevel(logging.WARNING)
