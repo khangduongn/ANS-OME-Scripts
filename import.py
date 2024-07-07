@@ -196,7 +196,7 @@ if __name__=='__main__':
         exit(1)
 
     #starting generating the command for importing to Omero
-    command = ['docker', 'exec', '-it', args.container_name, '/opt/omero/server/venv3/bin/omero']
+    command = ['docker', 'exec', args.container_name, '/opt/omero/server/venv3/bin/omero']
 
     #if the importer and the target user is not the same then add the command for the importer to have sudo permission to import images for another user
     if args.username != args.username_target:
