@@ -72,6 +72,10 @@ If you want to make changes to the environment of a Docker container (make new f
 This command lets you go inside the Docker container environment and run commands within the environment to make changes.
 
 
+#### Mount Volumes
+
+To import images from the host server (the server that is running the Omero Docker containers) to the Omero web application, you must perform [in-place importing](#in-place-import).
+
 ### Method 2: Direct Installation
 
 To install Omero directly onto your server without the use of containerization, you can follow the installation instructions on the [Omero System Administrator Documentation page](https://omero.readthedocs.io/en/stable/sysadmins/). This page also gives you resources on how to manage and optimize Omero (recommended for system administrators). You can also install the Omero server using installation scripts available at this [GitHub repository](https://github.com/ome/omero-install). Please read the instructions carefully and ensure you have the required prerequisites and system specifications to install and run Omero. Make sure to install both Omero.server and Omero.web. Currently, there are no official scripts available to easily install Omero.web. You need to follow the instructions provided in the System Administrator Documentation page.
@@ -79,29 +83,35 @@ To install Omero directly onto your server without the use of containerization, 
 It is more complicated to install and run Omero using this method compared to the Docker method. You should choose the method that works best for your needs.
 
 
-
-### Mount Volumes
-
-To import images from the host server (the server that is running the Omero Docker containers) to the Omero web application, you must perform in-place importing. 
-
-
-### Omero Python API
+## Omero Python API
 
 The Omero Python API allows you to connect to an Omero server and retrieve and manipulate image data stored within the server via Python. You can use Python to create scripts that automate tasks required within the Omero server by using the Omero Python API. Install the API and read the [documentation](https://docs.openmicroscopy.org/omero/5.6.0/developers/Python.html) for more information.
 
-### Omero Command Line Interface (CLI) 
+## Omero Command Line Interface (CLI) 
 
-The Omero Command Line Interface (Omero.cli) allows you to connect to an Omero server and retrieve and manipulate image data and objects stored within the server via the command line. It has very similar functionalities to the Omero Python API and is bundled with this API or the Omero server during installation. One useful feature of the Omero CLI is that it allows for easy import of images and can support a configuration YAML file used to perform a batch of imports with similar options at once (e.g., import groups of images into their own datasets). Install Omero.cli and read the [documentation](https://docs.openmicroscopy.org/omero/5.4.6/users/cli/index.html) for more information.
+The Omero Command Line Interface (Omero.cli) allows you to connect to an Omero server and retrieve and manipulate image data and objects stored within the server via the command line. It has very similar functionalities to the Omero Python API and is bundled with this API or the Omero server during installation. One useful feature of the Omero CLI is that it allows for easy import of images and can support a configuration YAML file used to perform a batch of imports with similar options at once (e.g., import groups of images into their own datasets). Install the Omero CLI and read the [documentation](https://docs.openmicroscopy.org/omero/5.4.6/users/cli/index.html) for more information.
 
-### Importing Images
+## Importing Images
+
+Read the [documentation](https://omero-guides.readthedocs.io/en/latest/upload/docs/import.html) on how to import images to Omero and choose the type of import that matches your needs.
 
 ### In-place Import
 
+It is recommended to use in-place import when you want to import images to your Omero server without making an additional copy of each image file, which would take up additional space on your server. Here are some resources on the different in-place importing methods and examples on how to in-place import using the Omero CLI:
+* https://docs.openmicroscopy.org/omero/5.4.5/sysadmins/in-place-import.html
+* https://omero-guides.readthedocs.io/en/latest/upload/docs/import-cli.html#in-place-import-using-the-cli
+
+
 ### Bulk Import
 
-### Omero Scripts
+It is recommended to use bulk import when you have multiple images that belong to different datasets and you want to import them to their respective datasets all at once. That way, you can take advantage of the configuration YAML file and customize the bullk import to your needs. Here are some resources on how to perform bulk imports as well as some examples:
+* https://docs.openmicroscopy.org/omero/5.6.3/users/cli/import-bulk.html
+* https://omero-guides.readthedocs.io/en/latest/upload/docs/import-cli.html#bulk-import-using-the-cli
 
-Omero scripts allow you to extend the functionalities of Omero (similar to plugins). They are typically written in Python but can support other languages as well, such as MATLAB and Jython. They can be uploaded to the Omero server and run in the Omero web client with its own UI (configured in the scripts). That way, users using the Omero web client can run the scripts to do their own image processing tasks. For more information on Omero scripts and how to develop your own, read the [documentation](https://docs.openmicroscopy.org/omero/5.4.5/developers/scripts/index.html)
+
+## Omero Scripts
+
+Omero scripts allow you to extend the functionalities of Omero (similar to plugins). They are typically written in Python but can support other languages as well, such as MATLAB and Jython. They can be uploaded to the Omero server and run in the Omero web client with its own UI (configured in the scripts). That way, users using the Omero web client can run the scripts to do their own image processing tasks. For more information on Omero scripts and how to develop your own, read the [documentation](https://docs.openmicroscopy.org/omero/5.4.5/developers/scripts/index.html).
 
 
 
