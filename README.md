@@ -22,6 +22,10 @@ Navigate into the directory with the script and ensure that the current Python e
 
 The help flag `-h` will provide you with more information on how to run the script with the required and optional arguments depending on your conversion needs.
 
+### OMERO
+
+[Omero](https://www.openmicroscopy.org/omero/) is an image viewer web application that stores all your images in a secure central repository, where you can view, organize, analyze, and share them from anywhere you have internet access. Read the official [Omero documentation](https://omero.readthedocs.io/en/stable/) to learn how to use Omero and how to best use its features for your needs.
+
 ## Setting Up Omero
 
 ### Method 1: Docker
@@ -31,7 +35,7 @@ Configure Docker to your liking but ensure that the Docker commands can only be 
 
 It is recommended to have a user with sudo privileges manage the Docker containers and Omero instance.
 
-The easiest way to get an Omero instance up and running is through using docker compose, which allows you to start an multi-container application quickly. The Omero web application requires three Docker containers to run (Omero server, Omero web, and PostgreSQL database). Install the docker compose files from this [GitHub repository](https://github.com/ome/docker-example-omero). You can clone the repository or just install the ZIP file directory. 
+The easiest way to get an Omero instance up and running is through using docker compose, which allows you to start a multi-container application quickly. The Omero web application requires three Docker containers to run (Omero server, Omero web, and PostgreSQL database). Install the docker compose files from this [GitHub repository](https://github.com/ome/docker-example-omero). You can clone the repository or just install the ZIP file directly. 
 
 After installing the repository files into a directory, run the following commands using the user with sudo privileges to start the Omero instance.
 
@@ -55,12 +59,9 @@ To stop the docker container, ensure that you are in the same directory containi
 
 `sudo docker compose down`
 
-Note: Any changes you make within these Docker containers (configs, files, or directorys) will get deleted after the containers shut down. To save the changes you make within a container, commit the container with the changes as a new image and run the container using the new image in the future. 
+Note: Any changes you make within these Docker containers (configs, files, or directories) will get deleted after the containers shut down. To save the changes you make within a container, commit the container with the changes as a new image and run the container using the new image in the future. Look up Docker documentation for more information.
 
 Images imported to Omero or changes made within the Omero web application will get saved when the containers shut down as long as you do not delete the Docker volumes associated with the Omero application.
-
-#### Mount Volumes
-
 
 #### Getting into the container
 
@@ -71,13 +72,40 @@ If you want to make changes to the environment of a Docker container (make new f
 This command lets you go inside the Docker container environment and run commands within the environment to make changes.
 
 
-
 ### Method 2: Direct Installation
 
+To install Omero directly onto your server without the use of containerization, you can follow the installation instructions on the [Omero System Administrator Documentation page](https://omero.readthedocs.io/en/stable/sysadmins/). This page also gives you resources on how to manage and optimize Omero (recommended for system administrators). You can also install the Omero server using installation scripts available at this [GitHub repository](https://github.com/ome/omero-install). Please read the instructions carefully and ensure you have the required prerequisites and system specifications to install and run Omero. Make sure to install both Omero.server and Omero.web. Currently, there are no official scripts available to easily install Omero.web. You need to follow the instructions provided in the System Administrator Documentation page.
+
+It is more complicated to install and run Omero using this method compared to the Docker method. You should choose the method that works best for your needs.
+
+
+
+### Mount Volumes
+
+To import images from the host server (the server that is running the Omero Docker containers) to the Omero web application, you must perform in-place importing. 
+
+
+### Omero Python API
+
+The Omero Python API allows you to connect to an Omero server and retrieve and manipulate image data stored within the server via Python. You can use Python to create scripts that automate tasks required within the Omero server by using the Omero Python API. Install the API and read the [documentation](https://docs.openmicroscopy.org/omero/5.6.0/developers/Python.html) for more information.
+
+### Omero Command Line Interface (CLI) 
+
+The Omero Command Line Interface (Omero.cli) allows you to connect to an Omero server and retrieve and manipulate image data and objects stored within the server via the command line. It has very similar functionalities to the Omero Python API and is bundled with this API or the Omero server during installation. One useful feature of the Omero CLI is that it allows for easy import of images and can support a configuration YAML file used to perform a batch of imports with similar options at once (e.g., import groups of images into their own datasets). Install Omero.cli and read the [documentation](https://docs.openmicroscopy.org/omero/5.4.6/users/cli/index.html) for more information.
+
+### Importing Images
+
+### In-place Import
+
+### Bulk Import
+
+### Omero Scripts
+
+Omero scripts allow you to extend the functionalities of Omero (similar to plugins). They are typically written in Python but can support other languages as well, such as MATLAB and Jython. They can be uploaded to the Omero server and run in the Omero web client with its own UI (configured in the scripts). That way, users using the Omero web client can run the scripts to do their own image processing tasks. For more information on Omero scripts and how to develop your own, read the [documentation](https://docs.openmicroscopy.org/omero/5.4.5/developers/scripts/index.html)
 
 
 
 
 
-### OMERO PYTHON
+
 
