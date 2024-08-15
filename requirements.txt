@@ -19,3 +19,4 @@ six==1.16.0
 tifffile==2023.9.26
 tomli==2.0.1
 tzdata==2023.3
+watchdog==4.0.2

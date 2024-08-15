@@ -74,7 +74,7 @@ This command lets you go inside the Docker container environment and run command
 
 #### Mount Volumes
 
-To import images from the host server (the server that is running the Omero Docker containers) to the Omero web application, you must perform [in-place importing](#in-place-import).
+To import images from the host server (the server that is running the Omero Docker containers) to the Omero web application (deployed using the Docker containers), it is recommended that you perform [in-place importing](#in-place-import) to prevent generating duplicate copies of the images. However, to perform in-place importing, it is a more involved process than just running the import commands as you must run these in-place import commands WITHIN the Omero server Docker container, meaning that the images that you want to import must also be mounted to a directory within this container. To mount the images from the host server to the Omero server Docker container, you must use Docker volumes. Read the [documentation](https://docs.docker.com/storage/volumes/) on Docker volumes to learn more about how they work. It is recommended that you modify the docker-compose.yml file to add a volume in the Omero server container that mounts a directory from the host server to a directory in the container. That way, you can run in-place import commands within the Omero server Docker container as these commands only work when ran within the server that is deploying the Omero server (in this case it would be the Omero server Docker container).
 
 ### Method 2: Direct Installation
 
