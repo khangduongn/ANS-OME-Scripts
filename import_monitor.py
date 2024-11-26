@@ -3,7 +3,7 @@ Author:
     Khang Duong
 
 Last Updated: 
-    9/5/2024
+    11/25/2024
 
 Description: 
     This script allows the user to import images in a directory or a single image to Omero. It is recommended that the images being imported are in OME-TIFF format. However, you can use other file formats that are compatible with Omero.
