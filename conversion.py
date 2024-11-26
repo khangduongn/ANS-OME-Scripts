@@ -3,7 +3,7 @@ Author:
     Khang Duong
 
 Last Updated: 
-    4/5/2024
+    11/25/2024
 
 Description: 
     This script allows the user to stitch a collection of TIF image tiles into a mosaic image and save this mosaic
@@ -62,7 +62,6 @@ args = parser.parse_args()
 
 def insert_tile(img_stitched, tiles_path, tileNumber, tilesize_x, tilesize_y, R, Rmax, C, Cmax, Z, ext, overlap ):
     
-    #TODO: ERROR HANDLE. Need Testing
     try:
         if '.tif' in ext:
             tile = tifffile.imread(os.path.join(tiles_path, f'Tile{str(tileNumber).zfill(6)}' + ext))
@@ -364,6 +363,7 @@ if __name__ == '__main__':
                     with tifffile.TiffWriter(outputImagePath, bigtiff = args.bigtiff) as writer:
                         writer.write(images,metadata={'axes': 'ZYX', 'PhysicalSizeX': pixSizeX, 'PhysicalSizeXUnit': "µm", 'PhysicalSizeY': pixSizeY, 'PhysicalSizeYUnit': "µm"}, compression = compression_parameter, tile = (tileSizeX, tileSizeY))
 
+                    #if debug is true, check the ssim to ensure that the mosaic image is the same as the stitched image
                     if args.debug == True:
                         testImg = tifffile.imread(outputImagePath)
 
