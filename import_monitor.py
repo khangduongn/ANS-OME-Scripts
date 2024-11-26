@@ -6,7 +6,7 @@ Last Updated:
     11/25/2024
 
 Description: 
-    This script allows the user to import images in a directory or a single image to Omero. It is recommended that the images being imported are in OME-TIFF format. However, you can use other file formats that are compatible with Omero.
+    This script allows the user to monitor a directory for new images to import. It is recommended that the images being imported are in OME-TIFF format. However, you can use other file formats that are compatible with Omero.
     The script imports image(s) in-place from a mounted folder on the host server to the Omero server docker container. The project and dataset names can be provided to directly import images to specific folders in Omero.
 
 Future Improvements:
