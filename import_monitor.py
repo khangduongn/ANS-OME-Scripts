@@ -16,7 +16,7 @@ Future Improvements:
     TODO: Medium Priority: Add option for the user to provide the project or dataset id instead of just the name for importing images to a project/dataset.
     TODO: Medium Priority: Test some error handling
     
-   
+    NOTE: If the importer is importing for another user, make sure they have sudo privileges in Omero.
     NOTE: This script must run using sudo in order for the docker commands to work.
     NOTE: This import script uses in place import to import images mounted from the host server to the Omero server ran on a docker container. 
     Therefore, at least one bind mount from the host machine to the Omero server docker container is required for the images to be in-place imported from the Omero server docker container.
@@ -35,18 +35,18 @@ import sys
 import logging
 import time
 import docker
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
 
-#parse arguments
 parser = argparse.ArgumentParser(description = 'Import images to Omero automated by watching a directory for new images')
-parser.add_argument('-u', '--username', type=str, metavar='', required=True, help='Omero username that is importing the images (Recommend using an importer account to import for other users)')
-parser.add_argument('-w', '--password', type=str, metavar='', required=True, help='Omero password for the user importing the images')
-parser.add_argument('-ut', '--username-target', type=str, metavar='', required=True, help='Omero username that is hosting the images on their page (could be the same as the importer). The images will be imported for this user and show up on their page')
-parser.add_argument('-p', '--project', type=str, metavar='', required=False, help='Name of the Omero project that you want to import the images to (This is optional. However, if the project name is specified but the dataset name is not specified, then an error will occur. A project must have a dataset to store an image)' )
-parser.add_argument('-c', '--container-name', type=str, metavar='',  default='docker-omero-omeroserver-1', required=False, help='The name of the docker container that is hosting the Omero server')
-parser.add_argument('-i', '--images-path', type=str, metavar='', required=True, help='Path of a directory where the stitched and converted OME-TIFF images will be stored for import to Omero. The directory on the host machine must be mounted on the Omero server docker container')
-parser.add_argument('-d', '--dataset', type=str, metavar='', required=False, help='Name of the Omero dataset that you want to import the images to (This is optional. If the dataset name is not specified, then the image will be imported to the Orphaned Images folder)' )
+parser.add_argument('-u', '--username', type=str, required=True, help='Omero username that is importing the images (Recommend using an importer account to import for other users)')
+parser.add_argument('-w', '--password', type=str, required=True, help='Omero password for the user importing the images')
+parser.add_argument('-ut', '--username-target', type=str, required=False, help='Omero username that is hosting the images on their page (could be the same as the importer). The images will be imported for this user and show up on their page. This flag is optional. If not set, then the username provided in the username flag will be used, meaning that the user is importing images to their own page.')
+parser.add_argument('-p', '--project', type=str, required=False, help='Name of the Omero project that you want to import the images to (This is optional. However, if the project name is specified but the dataset name is not specified, then an error will occur. A project must have a dataset to store an image)' )
+parser.add_argument('-c', '--container-name', type=str,  default='docker-omero-omeroserver-1', required=False, help='The name of the docker container that is hosting the Omero server')
+parser.add_argument('-i', '--images-path', type=str, required=True, help='Path of the directory where the stitched and converted OME-TIFF images will be stored for import to Omero. The directory on the host machine must be mounted on the Omero server docker container')
+parser.add_argument('-f', '--failed-path', type=str, required=False, help='Path of the directory where the images that failed to import are moved to. This is optional. If not provided, then the default directory is label "Failed", which will be created within the directory that is watching for new images.')
+parser.add_argument('-d', '--dataset', type=str, required=False, help='Name of the Omero dataset that you want to import the images to (This is optional. If the dataset name is not specified, then the image will be imported to the Orphaned Images folder)' )
 parser.add_argument('-v','--verbose', action='store_true', required=False, help='Enable verbose mode (Prints out information as the script is running)')
 args = parser.parse_args()
 
@@ -137,8 +137,9 @@ def is_valid_path_in_container(client, container_name: str, path: str) -> bool:
 #class for monitoring when there are new images in the image directory
 class NewImagesHandler(FileSystemEventHandler):
 
-    def __init__(self, client):
-        self.dockerClient = client
+    def __init__(self, docker_client, failed_path):
+        self.docker_client = docker_client
+        self.failed_path = failed_path
 
     def on_created(self, event):
         #check that the new entry in the directory is not a directory and that it ends with .ome.tiff (to ensure that it is an image)
@@ -151,27 +152,44 @@ class NewImagesHandler(FileSystemEventHandler):
             #import the image
             self.import_image(event.src_path)
 
-    def wait_for_completion(self, image_path):
-        #image_path is the path of the image in the host server
+    def wait_for_completion(self, host_image_path: str):
+        #host_image_path is the path of the image in the host server
 
-        logging.info(f"Waiting for the image to be completely saved and converted: {image_path}")
+        logging.info(f"Waiting for the image to be completely saved and converted: {host_image_path}")
 
         #keep iterating until the size of the file does not change 
         while True:
-            initial_size = os.path.getsize(image_path)
-            time.sleep(10)
-            current_size = os.path.getsize(image_path)
+            initial_size = os.path.getsize(host_image_path)
+            time.sleep(120)
+            current_size = os.path.getsize(host_image_path)
             if initial_size == current_size:
                 break
 
-    def import_image(self, image_path):
-        #image_path is the path of the image in the host server
-
-        #apply the mount to the path so that it is a valid path in the Omero server docker container
-        image_path = apply_mount(bind_mounts, image_path)
+    def import_image(self, host_image_path: str):
         
-        if image_path == None:
-            logging.error("Error: The provided images path cannot be applied to any bind mounts on the Omero server docker container.")
+        #host_image_path is the path of the image in the host server
+        #container_image_path is the path of the image in the Omero Docker container
+
+        #track if an error occurred during import
+        error_occurred = False
+
+        #get the name of the image
+        filename = os.path.basename(host_image_path)
+
+        #get the failed path of the image (only used to move the image if the image fails to import)
+        failed_image_path = os.path.join(self.failed_path, filename)
+      
+        #apply the mount to the path so that it is a valid path in the Omero server docker container
+        container_image_path = apply_mount(bind_mounts, host_image_path)
+        
+        #failed to apply the container path to the image
+        if container_image_path == None:
+            logging.error("Error: The provided images path cannot be applied to any bind mounts on the Omero server docker container. Moving the image to the failed directory")
+            
+            try:
+                os.rename(host_image_path, failed_image_path)
+            except Exception as error:
+                logging.error(f"Error: Unable to move the image file {filename} (failed to import) to the failed directory: {error}")
             return
 
         #starting generating the command for importing to Omero
@@ -183,44 +201,70 @@ class NewImagesHandler(FileSystemEventHandler):
 
         #if the project is provided, then import the images to the project and dataset
         if args.project:
-            command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Project:name:{args.project}/Dataset:name:{args.dataset}', image_path])
+            command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Project:name:{args.project}/Dataset:name:{args.dataset}', container_image_path])
         
         #if only dataset is provided, then import the images to the dataset
         elif args.dataset:
-            command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Dataset:name:{args.dataset}', image_path])
+            command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', '-T', f'Dataset:name:{args.dataset}', container_image_path])
         
         #otherwise import the images as orphans
         else:
-            command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', image_path])
+            command.extend(['-u', args.username_target, '-s', 'localhost', '-w', args.password, 'import', '--transfer=ln_s', container_image_path])
 
-        logging.info("The command used to import the image: " + " ".join(command))
+        #logging.info("The command used to import the image: " + " ".join(command))
 
         try:
 
             #run the command
-            result = self.dockerClient.containers.get(args.container_name).exec_run(command, demux=True)
+            result = self.docker_client.containers.get(args.container_name).exec_run(command, demux=True)
             
-            print("OUTPUT")
-            print(str(result[0]))
+            stdout, stderr = result.output
+        
+            logging.info("----------------OUTPUT-----------------")
+            
+            if stdout:
+                stdout = stdout.decode().replace('\\r', '\r').replace('\\n', '\n').replace('\\t', '\t')
+                logging.info(stdout)
+            
+            if stderr:
+                logging.info("----------------DEBUG/ERROR-----------------")
+                logging.info(stderr.decode().replace('\\r', '\r').replace('\\n', '\n').replace('\\t', '\t'))
 
-            print("ERROR")
-            print(str(result[1]))
-            #if the exit code of the command is not 0, then raise an error
+                
+            #if the exit code of the command is not 0, then log error (potentially due to Docker container error)
             if result.exit_code != 0:
-                logging.error(f"Image import failed with exit code {result.exit_code}.")
-            else:
+                logging.error(f"Image import failed with exit code {result.exit_code}. Enable verbose mode when running this script and check the DEBUG/ERROR section for more information.")
+                error_occurred = True                
+            elif stdout and "Image:" in stdout: #if the output has the image with its id, then image has been imported successfully
                 logging.info("Image import completed successfully.")
+            else: #if stdout doesn't have the Image id that the image has not been imported correctly.
+                logging.error(f"Image import failed. Enable verbose mode when running this script and check the DEBUG/ERROR section for more information. Make sure the image being imported is not corrupted and is .ome.tiff")
+                error_occurred = True
+
         
         except Exception as error:
-            logging.error(f"Error: Unable to import image: {error}")
+            logging.error(f"Unable to import image: {error}")
+            error_occurred = True
+        
 
+        #if an error occurred during the import process, then move the image to the failed directory
+        if error_occurred:
+            try:
+                os.rename(host_image_path, failed_image_path)
+            except Exception as error:
+                logging.error(f"Error: Unable to move the image file {filename} (failed to import) to the failed directory: {error}")
 
-
-
+        
 if __name__=='__main__':
 
-    #initialize Docker client
-    dockerClient = docker.from_env()
+    try:
+        #initialize Docker client
+        docker_client = docker.from_env()
+
+    except Exception as error:
+        print(f"Error: Unable to connect to the Docker client. Check if Docker is running. You must have sudo permission to execute Docker commands: {error}", file=sys.stderr)
+        exit(1)
+        
 
     #create logger
     logger = logging.getLogger()
@@ -243,6 +287,11 @@ if __name__=='__main__':
     #add the handler to the logger
     logger.addHandler(streamHandler)
     
+    #if the target username is not provided, then the username of the user that is doing the importing is used, meaning that the user is importing the images to their own page
+    if not args.username_target:
+        args.username_target = args.username
+
+    logging.info(f"Starting the import process. The user {args.username} is importing images to the page of user {args.username_target}")
 
     #if the project name is provided but not the dataset, then print error (a project must have a dataset)
     if args.project and not args.dataset:
@@ -254,10 +303,27 @@ if __name__=='__main__':
         print("Error: The path provided is not a valid directory path to watch for images. Check to see if the directory exists.", file = sys.stderr)
         exit(1)
 
+    #set the path to store images that failed to import to <pathToImagesWatchDirectory>/Failed as default if the option was not set 
+    #otherwise, set the path to the path provided by the user
+    failed_path = os.path.join(args.images_path, "Failed") if not args.failed_path else args.failed_path
+
+    #check if path of the directory to store images that failed to import is a valid directory path
+    if not os.path.isdir(failed_path):
+        logging.info("The path to store images that failed to import is not a valid directory path or does not exist")
+        logging.info(f"Creating a failed directory at {failed_path}")
+        
+        #attempt to create the directory
+        try:
+            os.makedirs(failed_path)
+            logging.info(f"The directory to store images that failed to import was created successfully: {failed_path}")
+        except OSError as error:
+            print(f"Error: Unable to create directory {failed_path} to store failed images: {error}", file=sys.stderr)
+            exit(1)
+
     logging.info(f"Getting the list of bind mounts for the Docker container: {args.container_name}")
 
     #get the list of bind mounts using the name of the docker container that is hosting the Omero server
-    bind_mounts = get_container_bind_mounts(dockerClient, args.container_name)
+    bind_mounts = get_container_bind_mounts(docker_client, args.container_name)
 
     #no bind mounts found (bind mounts are needed for in-place import to Omero)
     if len(bind_mounts) == 0:
@@ -276,16 +342,16 @@ if __name__=='__main__':
     logging.info(f"The new images path on the Omero server docker container: {images_path}")
 
     #check if path is a valid path in the Omero server docker container
-    if not is_valid_path_in_container(dockerClient, args.container_name, images_path):
+    if not is_valid_path_in_container(docker_client, args.container_name, images_path):
         print("Error: The images path provided is not a valid directory to watch for images in the Omero server docker container", file = sys.stderr)
         exit(1)
 
-
-    new_images_handler = NewImagesHandler(dockerClient)
+    
+    new_images_handler = NewImagesHandler(docker_client, failed_path)
 
     #observer to watch for new images in the provided directory 
     #It is not recursive meaning it only checks for new images in the parent directory and not any sub/child directories)
-    observer = Observer()
+    observer = PollingObserver()
     observer.schedule(new_images_handler, path=args.images_path, recursive=False)
 
     #start the observer
