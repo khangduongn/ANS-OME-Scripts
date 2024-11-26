@@ -53,7 +53,7 @@ def attach_csv_file(conn, dataset, filenames: list[str]):
     # create the temp directory and then temp file to write the csv data
     tmp_dir = tempfile.mkdtemp(prefix='Dataset_Image_Filenames')
     (fd, tmp_file) = tempfile.mkstemp(dir=tmp_dir, text=True)
-    tmp_file = os.fdopen(fd, 'w')
+    tfile = os.fdopen(fd, 'w')
 
     #this function to writes a line to the csv file
     def to_csv(ll):
@@ -63,13 +63,13 @@ def attach_csv_file(conn, dataset, filenames: list[str]):
 
     #construct the header of the csv file
     header = ['Filename']
-    tmp_file.write(to_csv(header))
+    tfile.write(to_csv(header))
 
-    # write the filename for each file to the csv file
+    #write the filename for each file to the csv file
     for filename in filenames:
         row = [filename]
-        tmp_file.write(to_csv(row))
-    tmp_file.close()
+        tfile.write(to_csv(row))
+    tfile.close()
 
     #generate the name for the csv file
     name = "{}_filenames.csv".format(dataset.getName())
