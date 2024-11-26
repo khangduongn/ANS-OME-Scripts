@@ -48,6 +48,7 @@ parser.add_argument('-i', '--images-path', type=str, required=True, help='Path o
 parser.add_argument('-f', '--failed-path', type=str, required=False, help='Path of the directory where the images that failed to import are moved to. This is optional. If not provided, then the default directory is label "Failed", which will be created within the directory that is watching for new images.')
 parser.add_argument('-d', '--dataset', type=str, required=False, help='Name of the Omero dataset that you want to import the images to (This is optional. If the dataset name is not specified, then the image will be imported to the Orphaned Images folder)' )
 parser.add_argument('-v','--verbose', action='store_true', required=False, help='Enable verbose mode (Prints out information as the script is running)')
+parser.add_argument('-l', '--log-path', type=str, required=False, help='Path of the log file to store the errors and outputs from the script')
 args = parser.parse_args()
 
 
@@ -268,24 +269,40 @@ if __name__=='__main__':
 
     #create logger
     logger = logging.getLogger()
-
+    
     #if verbose is set, allow more information to be logged
     if args.verbose:
         logger.setLevel(logging.INFO)
     else:
         #otherwise only display errors/warnings
         logger.setLevel(logging.WARNING)
-
-    #create a stream handler and ensure that all messages are printed to stdout
-    streamHandler = logging.StreamHandler()
-    streamHandler.setLevel(logger.level)  
-
-    #create a formatter and set the formatter for the handler
-    formatter = logging.Formatter("%(levelname)-8s: %(message)s")
-    streamHandler.setFormatter(formatter)
     
-    #add the handler to the logger
-    logger.addHandler(streamHandler)
+    #if the log file is not provided, then output the logging information to stdout
+    if not args.log_path:
+        #create a stream handler and ensure that all messages are printed to stdout
+        streamHandler = logging.StreamHandler()
+        streamHandler.setLevel(logger.level)  
+
+        #create a formatter and set the formatter for the handler
+        formatter = logging.Formatter("%(asctime)s - %(levelname)-8s: %(message)s")
+        streamHandler.setFormatter(formatter)
+        
+        #add the handler to the logger
+        logger.addHandler(streamHandler)
+    else:
+
+        #if log file is provided then output the logging information to file
+
+        #create a stream handler and ensure that all messages are printed to stdout
+        fileHandler = logging.FileHandler(args.log_path)
+        fileHandler.setLevel(logger.level)  
+
+        #create a formatter and set the formatter for the handler
+        formatter = logging.Formatter("%(asctime)s - %(levelname)-8s: %(message)s")
+        fileHandler.setFormatter(formatter)
+        
+        #add the handler to the logger
+        logger.addHandler(fileHandler)
     
     #if the target username is not provided, then the username of the user that is doing the importing is used, meaning that the user is importing the images to their own page
     if not args.username_target:
