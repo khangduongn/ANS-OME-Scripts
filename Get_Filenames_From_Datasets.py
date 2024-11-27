@@ -3,7 +3,7 @@ Author:
     Khang Duong
 
 Last Updated: 
-    11/25/2024
+    11/26/2024
 
 Description: 
     This Omero script allows the user to obtain the filenames of the images in Omero dataset(s).
@@ -21,7 +21,7 @@ Description:
     INSTRUCTIONS ON HOW TO RUN THIS SCRIPT:
         1. When you are logged in to the website, you should see the gears icon on the top right corner of the interface (close to the search bar). Click on the icon.
         2. Select "custom_scripts"
-        3. Select "Get Filenames From Dataset". The interface for the script should appear.
+        3. Select "Get Filenames From Datasets". The interface for the script should appear.
         4. Enter the ID(s) of the dataset(s) where you want to retrieve the filenames of the images, separated by a comma (only needed if you are doing this for multiple datasets). There is a shortcut where you can select the dataset(s) before clicking on the gears icon, which will fill in the IDs entry without you having to enter the IDs yourself.
         5. Click "Run Script" once you have the dataset ID(s) entered
         6. After the script finishes running, you should see a "done" message.
@@ -38,7 +38,7 @@ import tempfile
 import os
 
 
-def attach_csv_file(conn, dataset, filenames: list[str]):
+def attach_csv_file(conn, dataset, filenames: list[str]) -> str:
     '''
     Description:
         This function writes the filenames to the csv file to attach it to the dataset
@@ -47,7 +47,7 @@ def attach_csv_file(conn, dataset, filenames: list[str]):
         dataset - the Omero dataset object that the csv file will get attached to
         filenames - the list of filenames in the dataset
     Output:
-        success - a boolean representing whether the metadata has been successfully imported 
+        message - a message indicating the result of the function 
     '''
 
     # create the temp directory and then temp file to write the csv data
@@ -84,57 +84,43 @@ def attach_csv_file(conn, dataset, filenames: list[str]):
     os.remove(tmp_file)
     os.rmdir(tmp_dir)
 
-    return "Done attaching csv to dataset"
+    return f"Done attaching csv to dataset with id: {dataset.getId()}"
 
 
 def run_script():
 
-    data_types = [rstring('Dataset')]
     client = scripts.client(
         'Get Filenames in Dataset(s)',
-        """
-    This script returns the list of filenames of the images in dataset(s).
-        """,
-        scripts.String(
-            "Data_Type", optional=False, grouping="1",
-            description="Choose source of images",
-            values=data_types, default="Dataset"),
-
+        "This script returns the list of filenames of the images in the dataset(s).",
         scripts.List(
-            "IDs", optional=False, grouping="2",
+            "Dataset IDs", optional=False, grouping="1",
             description="Dataset IDs").ofType(rlong(0)),
-
-
         authors=["Khang Duong"],
         institutions=["Drexel ANS"],
     )
 
     try:
-        #process the list of args above.
-        script_params = {}
-        for key in client.getInputKeys():
-            if client.getInput(key):
-                script_params[key] = client.getInput(key, unwrap=True)
 
         #wrap client to use the Blitz Gateway
         conn = BlitzGateway(client_obj=client)
         print("Connection Established")
 
-        data_type = script_params["Data_Type"]
-        print(data_type)
-        ids = script_params["IDs"]
+        #get the dataset ids from client
+        ids = client.getInput("Dataset IDs", unwrap=True)
+        print(f"Dataset IDs: {ids}")
 
-        #get the datasets
-        datasets = list(conn.getObjects(data_type, ids))
-        print(ids)
+        #get the dataset objects
+        datasets = list(conn.getObjects("Dataset", ids))
         print("Dataset(s):")
         print(datasets)
 
         #if the datasets don't exist
         if len(datasets) == 0:
             client.setOutput("Message", rstring("No Dataset Found"))
-            raise Exception
+            raise Exception("No Dataset Found")
             
+        processed_dataset_ids = [] #store the dataset ids of the processed datasets
+
         #for each dataset
         for ds in datasets:
 
@@ -172,7 +158,11 @@ def run_script():
             message = attach_csv_file(conn, ds, filenames)
             print(message)
 
-        client.setOutput("Message", rstring("The script has finished"))
+            processed_dataset_ids.append(str(ds.getId()))
+
+        #print message after script finishes
+        datasets_ids_text_list = ", ".join(processed_dataset_ids)
+        client.setOutput("Message", rstring(f'The script has finished. Check the "Attachments" tab under the datasets with these ids: {datasets_ids_text_list}'))
 
     finally:
         client.closeSession()
