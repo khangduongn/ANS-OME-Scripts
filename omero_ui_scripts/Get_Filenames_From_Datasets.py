@@ -24,7 +24,7 @@ Description:
         3. Select "Get Filenames From Datasets". The interface for the script should appear.
         4. Enter the ID(s) of the dataset(s) where you want to retrieve the filenames of the images, separated by a comma (only needed if you are doing this for multiple datasets). There is a shortcut where you can select the dataset(s) before clicking on the gears icon, which will fill in the IDs entry without you having to enter the IDs yourself.
         5. Click "Run Script" once you have the dataset ID(s) entered
-        6. After the script finishes running, you should see a "done" message.
+        6. After the script finishes running, you should see a message displaying the results.
         7. Click on the dataset and look at the "Attachments" tab, where you should see the csv file generated with the filenames. The file is usually called "<dataset_name>_filenames.csv"
 '''
 

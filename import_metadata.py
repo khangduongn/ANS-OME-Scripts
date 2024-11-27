@@ -3,7 +3,7 @@ Author:
     Khang Duong
 
 Last Updated: 
-    11/25/2024
+    11/26/2024
 
 Description: 
     This script allows the user to import metadata for images in Omero. It is recommended that the image 
@@ -60,7 +60,10 @@ def add_annotations_to_image(conn, image_id: str, keys: list[str], values: list[
     #for each annotation
     for annotation in image.listAnnotations():
         annotations_to_delete.append(annotation.id)
-    conn.deleteObjects('Annotation', annotations_to_delete, wait=True)
+
+    #if there are annotations to delete then delete them
+    if len(annotations_to_delete) != 0:
+        conn.deleteObjects('Annotation', annotations_to_delete, wait=True)
 
     #add the new metadata to image as an annotation    
     annotation = MapAnnotationWrapper(conn)
