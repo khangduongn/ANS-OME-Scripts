@@ -145,31 +145,50 @@ class NewImagesHandler(FileSystemEventHandler):
     def on_created(self, event):
         #check that the new entry in the directory is not a directory and that it ends with .ome.tiff (to ensure that it is an image)
         if not event.is_directory and event.src_path.endswith('.ome.tiff'):
-            logging.info(f"New image detected in the folder: {event.src_path}. Importing the image to Omero.")
+            logging.info(f"\nNew image detected in the folder: {event.src_path}. Importing the image to Omero.")
             
             #wait until the image finishes converting first before importing
-            self.wait_for_completion(event.src_path)
+            success = self.wait_for_completion(event.src_path)
 
-            #import the image
-            self.import_image(event.src_path)
+            #import the image if waiting for file stabilization is successful
+            if success:
+                self.import_image(event.src_path)
 
-    def wait_for_completion(self, host_image_path: str):
+    def wait_for_completion(self, host_image_path: str) -> bool:
         #host_image_path is the path of the image in the host server
 
         logging.info(f"Waiting for the image to be completely saved and converted: {host_image_path}")
 
-        #keep iterating until the size of the file does not change 
-        while True:
-            initial_size = os.path.getsize(host_image_path)
-            time.sleep(120)
-            current_size = os.path.getsize(host_image_path)
-            if initial_size == current_size:
-                break
+        stabilization_max_checks = 5 
+        stabilization_count = 0
+
+        try: 
+            #keep iterating until the size of the file does not change (check 5 times)
+            while stabilization_count < stabilization_max_checks:
+                initial_size = os.path.getsize(host_image_path)
+                logging.info(f"Current file size: {initial_size}")
+                logging.info("Sleeping for 2 minutes...")
+                time.sleep(120)
+                current_size = os.path.getsize(host_image_path)
+                logging.info(f"New file size: {current_size}")
+                if initial_size == current_size:
+                    stabilization_count += 1
+                    logging.info(f"The file size has stabilished. Incrementing the stabilization count. Current count: {stabilization_count}")
+                else:
+                    stabilization_count = 0
+                    logging.info(f"The file size has not stabilished. Resetting the stabilization count. Current count: {stabilization_count}")
+
+            return True
+        except Exception as e:
+            logging.error(f"Error: Unable to check the file size stabilization of the image file: {host_image_path}. The following error occurred: {e}")
+            return False
 
     def import_image(self, host_image_path: str):
         
         #host_image_path is the path of the image in the host server
         #container_image_path is the path of the image in the Omero Docker container
+
+        logging.info(f"Importing the image to Omero: {host_image_path}")
 
         #track if an error occurred during import
         error_occurred = False
