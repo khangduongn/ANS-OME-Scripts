@@ -1,0 +1,4 @@
+# NOTE: Before running this script, edit this file and replace following placeholders with the appropriate credentials in the commands below:
+# omero_server_docker_container_name, path_to_get_image_names_from_datasets_script_in_docker, username, password, name_of_new_csv_file, path_for_new_csv_file_in_host_server
+docker exec -i omero_server_docker_container_name /opt/omero/server/venv3/bin/python3 path_to_get_image_names_from_datasets_script_in_docker -u username -w password -c name_of_new_csv_file -v
+docker cp omero_server_docker_container_name:/tmp/name_of_new_csv_file path_for_new_csv_file_in_host_server
