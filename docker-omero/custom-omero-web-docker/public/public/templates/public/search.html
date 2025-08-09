@@ -1,0 +1,42 @@
+{% extends "public/base.html" %}
+
+{% block title %}
+Virtual Diatom Slide Collection Search
+{% endblock %}
+
+
+{% block body %}
+
+<h2>Results</h2>
+
+<p>{{ images | length }} images found.</p>
+
+{% for image in images %}
+<hr>
+    <div class="media">
+        <a class="pull-left" href="{% url 'web_image_viewer' image.id %}">
+            <img title="{{ image.name }}" src="{% url 'webgateway_render_thumbnail' image.id 96 %}" />
+        </a>
+        <div class="media-body">
+            <dl class="row">
+                <dt class="col-sm-5">Filename</dt>
+                <dd class="col-sm-7">{{ image.name }}</dd>
+            {% for key, value in image.metadata %}  
+                {% if "filename" not in key|lower %}
+                    <dt class="col-sm-5">{{ key }}</dt>
+                    <dd class="col-sm-7">
+                        {% if value %}
+                            {{ value }}
+                        {% else %}
+                            &nbsp;
+                        {% endif %}
+                    </dd>
+                {% endif %}
+            {% endfor %}
+            </dl>
+        </div>
+    </div>
+{% endfor %}
+
+
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "public/base.html" %}
+
+{% block title %}
+    {{ dataset.getName }}
+{% endblock %}
+
+
+{% block body %}
+
+    <h1>{{ dataset.getName }}</h1>
+    <p>{{ dataset.getDescription }}</p>
+
+    <hr>
+    
+    {% load custom_filters %}
+
+    {% for i in dataset.listChildren %}
+        <div class="media">
+            <a class="pull-left" href="{% url 'web_image_viewer' i.id %}">
+                <img title="{{ i.getName }}" src="{% url 'webgateway_render_thumbnail' i.id 96 %}" />
+            </a>
+            <div class="media-body">
+                <dl class="row">
+                    <dt class="col-sm-5">Filename</dt>
+                    <dd class="col-sm-7">{{ i.getName }}</dd>
+                    {% for ann in i.listAnnotations %}
+                        {% if ann|is_map_annotation %}
+                                {% for key, value in ann.getValue %}
+                                    {% if "filename" not in key|lower %}
+                                        <dt class="col-sm-5">{{ key }}</dt>
+                                        <dd class="col-sm-7">
+                                            {% if value %}
+                                                {{ value }}
+                                            {% else %}
+                                                &nbsp;
+                                            {% endif %}
+                                        </dd>
+                                    {% endif %}
+                                {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+                </dl>
+            </div>
+        </div>
+        <hr>
+    {% endfor %}
+
+    
+
+{% endblock %}

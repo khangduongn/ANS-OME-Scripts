@@ -1,0 +1,30 @@
+{% extends "public/base.html" %} 
+
+
+{% block title %} 
+  Virtual Diatom Slide Collection
+{% endblock%} 
+
+{% block body %}
+
+<script type="text/javascript">
+  // Global variables, used by JavaScript code.
+  window.PARAMS = {};
+
+  // Render a URL to the /api/v0/ URL for loading JSON data
+  window.PARAMS.API_BASE_URL = "{% url 'api_base' 0 %}";
+  window.PARAMS.SHOW_DATASET_URL = "{% url 'public_show_dataset' 0 %}".replace('/0/', '/');
+</script>
+
+<h1>Virtual Diatom Slide Collection of the Academy of Natural Sciences, Drexel University</h1>
+
+<p id="summary"></p>
+
+<hr>
+
+<div id="projects">Loading Projects...</div>
+
+
+<!-- Include the static JavaScript -->
+<script src="{% static 'public/app.js' %}"></script>
+{% endblock %}

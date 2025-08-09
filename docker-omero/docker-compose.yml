@@ -1,0 +1,59 @@
+version: "3"
+
+services:
+
+  database:
+    image: "postgres:11"
+    environment:
+      POSTGRES_USER: omero
+      POSTGRES_DB: omero
+      POSTGRES_PASSWORD: omero
+    networks:
+      - omero
+    volumes:
+      - "database:/var/lib/postgresql/data"
+
+  omeroserver:
+    # This container uses the tag for the latest server release of OMERO 5
+    # To upgrade to the next major release, increment the major version number
+    image: "openmicroscopy/omero-server:5"
+    environment:
+      CONFIG_omero_db_host: database
+      CONFIG_omero_db_user: omero
+      CONFIG_omero_db_pass: omero
+      CONFIG_omero_db_name: omero
+      ROOTPASS: omero
+    networks:
+      - omero
+    ports:
+      - "4063:4063"
+      - "4064:4064"
+    volumes:
+      - "omero:/OMERO"
+      - "/mnt/XLINUXDIATOMSE3ARCON/:/mnt/images:ro"
+      - "/home/bdim/omero_scripts/:/opt/omero/server/OMERO.server/lib/scripts/omero/custom_scripts:ro"
+
+  omeroweb:
+    # This container uses the tag for the latest web release of OMERO 5
+    # To upgrade to the next major release, increment the major version number
+    image: "omero-web-customized"
+    environment:
+      OMEROHOST: omeroserver
+      CONFIG_omero_web_public_enabled: true
+      CONFIG_omero_web_public_user: public
+      CONFIG_omero_web_public_password: ${PUBLIC_USER_PASSWORD} #password is stored in .env file (only accessible by users with root privileges)
+      CONFIG_omero_web_public_server__id: 1
+      CONFIG_omero_web_public_url__filter: '^/iviewer|webgateway|webclient|api|gallery|public'    
+    networks:
+      - omero
+    ports:
+      - "4080:4080"
+    volumes:
+      - "/home/bdim/docker-omero/custom-omero-web-docker/public/public:/opt/omero/web/venv3/lib/python3.9/site-packages/public"
+
+networks:
+  omero:
+
+volumes:
+  database:
+  omero:
