@@ -1,5 +1,3 @@
-version: "3"
-
 services:
 
   database:
@@ -32,6 +30,7 @@ services:
       - "omero:/OMERO"
       - "/mnt/XLINUXDIATOMSE3ARCON/:/mnt/images:ro"
       - "/home/bdim/omero_scripts/:/opt/omero/server/OMERO.server/lib/scripts/omero/custom_scripts:ro"
+      - "/home/bdim/custom_scripts/:/mnt/custom_scripts:ro"
 
   omeroweb:
     # This container uses the tag for the latest web release of OMERO 5

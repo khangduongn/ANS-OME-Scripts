@@ -65,6 +65,21 @@ Currently, the conversion pipeline is deployed on the conversion server. The con
 Currently, the Omero web application is deployed on the web server. The import.py script can be run to import converted image scans. To monitor a directory for new images to import, you need to run the import_monitor.py script. The monitor script is currently running on the web server at all times in a daemon service. The file to manage the service is located in [#TODO] The script looks the mounted read-only directory from the network file share for new images that got converted and import them to the Omero web app. 
  
 ## Setup
+### Installing Python
+You must install Python on both the conversion and web servers in order to run Python scripts used in the conversion and import pipelines.
+1. It is recommended you install miniconda, which is a lightweight package management system for Python. You can install miniconda for your system [here](https://www.anaconda.com/docs/getting-started/miniconda/install)
+2. You can add ```conda``` to your environment variable so you don't have to type out the full path to conda whenever you want to run a conda command.
+    * For example, in Linux, you can do the following:
+        1. Open the ```~/.bashrc``` file with your favorite editor and add the following line to it:
+            * ```export PATH="</path/to/your/anaconda3/bin>:$PATH"```, replacing ```</path/to/your/anaconda3/bin>``` with the path to the bin directory where your conda executable is.
+        2. Apply the change by running the command ```source ~/.bashrc```
+3. Create a Python virtual environment to install the libraries needed to manage Omero and run the Python scripts:
+    ```conda create --name ome python=3.9.13```
+4. Activate the virtual environment: ```conda activate ome```
+5. Install dependencies using the ```requirements.txt``` that in the [Github repository](https://github.com/khangduongn/ANS-OME-Scripts)
+    * ```pip3 install -r </path/to/requirements.txt>```, replacing ```</path/to/requirements.txt>``` with the path to the ```requirements.txt``` file
+
+
 ### Installing Omero using Docker
 Prerequisite:
 1. Ensure the server that will be hosting the Omero application is active and secure before installing Omero. This server will be responsible for managing the Omero server, web services, and database. 
@@ -81,7 +96,7 @@ Installation:
         * PostgreSQL database stores the data
 2. After cloning the repository, ```cd``` into that repository and into the ```docker-omero``` directory, which contains the ```docker-compose.yml``` file in order to start the containers
 3. Open the ```docker-compose.yml``` file using your favorite editor
-4. Modify the configuration settings appropriate for your system. 
+4. Modify the configuration settings appropriate for your system. (#TODO)
     * For example, it is recommended to modify the volume mounts for the image directory and the directory with the ```public``` application
 4. Before you can start the containers, you must build a custom Omero web Docker image, which contains the ```public``` app used for displaying images to the public. 
 5. ```cd``` into the ```custom-omero-web-docker``` directory which contains the ```Dockerfile``` used for building the Docker image for Omero web
@@ -106,11 +121,59 @@ Installation:
     * **Note**: Any changes you make within these Docker containers (configs, files, or directories) will get deleted after the containers shut down. 
         * To save the changes you make within a container, commit the container with the changes as a new image and run the container using the new image in the future. Look up Docker documentation for more information.
         * Images imported to Omero or changes made within the Omero web application will get saved when the containers shut down as long as you do not delete the Docker volumes associated with the Omero application.
+
 ### Getting into the Docker container (For Testing or Development)
 If you want to make changes to the environment of a Docker container (make new folders, add new configurations, or change the Omero web UI), you can do so using the following command:
 ```sudo docker exec -it <container_name_or_id> /bin/bash```, replacing ```<container_name_or_id>``` with the container name or container id. This command lets you go inside the Docker container environment and run commands within the environment to make changes. These changes will be erased if you shut down the container without committing.
 
+### Create users in Omero
+1. Log in as root in the Omero web application to create new users and change root's password
+    * The username is ```root```, and the password is ```omero```. You must change root's password after logging in.
+    * You can change the password by logging in as root and clicking on the ```Admin``` tab at the top navigation bar. Click on the pencil icon next to root and then click on ```Change User's Password```.
+2. It is recommended to create a ```public``` group with two users. One user will own the images and the other user will be the public user who can only view the images without logging in.
+    * To create a group, click on the ```Admin``` tab at the top navigation bar, then click ```Groups```, and lastly click on the ```Add new Group``` button.
+    * This group should have read only permission.
+2. Create new users by clicking on the ```Admin``` tab at the top navigation bar and then click the ```Add new User``` button.
+    * User that owns the image: This user should have the User role and be in the ```public``` group.
+    * Public user: This user should have the User role and be in the ```public``` group.
+3. Be sure to remember the passwords of these users as these will be used later. The credentials of these users in the current installation of Omero can be obtained by contacting ANS IT.
+
+### Setting up the Conversion Pipeline
+1. (#TODO)
+
 ### Setting up the Import Pipeline
+1. Create a daemon service file ```/etc/systemd/system/import.service``` using your favorite editor (must use sudo)
+2. Add the following lines to the file:
+```
+[Unit]
+Description=Omero Import Daemon
 
+[Service]
+ExecStart=</path/to/miniconda>/envs/ome/bin/python3 -u </path/to/import_monitor.py> -u <username> -w <password> </path/to/mount/with/converted/images> -v -l </path/to/your/import/logs/file>
+Restart=always
 
+[Install]
+WantedBy=multi-user.target
+```
+* ```</path/to/miniconda>``` - path to your miniconda instance
+* ```</path/to/import_monitor.py>``` - path to your import_monitor.py script (found in the GitHub repository)
+* ```<username>``` - Omero username of the user that will own the images
+* ```<password>``` - password of the Omero user
+* ```</path/to/mount/with/converted/images>``` - path to the mounted directory with the converted images from the conversion server
+* ```</path/to/your/import/logs/file>``` - path to the import logs file that will store the logs for the imports 
 
+3. Start the daemon service by running ```sudo systemctl start import```
+
+4. You can check the status of the daemon service by running ```sudo systemctl status import```
+
+5. You can view the import logs by looking at the log file, which you provided as an argument in the import service file.
+
+6. You can shut down the daemon service by running ```sudo systemctl stop import```
+
+7. After setting up the daemon service, you need to set up the root cronjob to restart the daemon service every day and run the reimport script just in case the daemon service gets hung up for whatever reason. 
+    * Run the command ```sudo crontab -e``` to create a root cronjob
+    * Add the following line to the cronjob file: \
+    ```0 5 * * * /usr/bin/systemctl restart import && </path/to/reimport_images_run.sh> >> </path/to/reimport/logs/file> 2>&1```
+        * ```</path/to/reimport_images_run.sh>``` - path to the reimport_images_run.sh file in the server. This file can be found in the GitHub repository. Follow the instructions in the file to customize it to your needs.
+        * ```</path/to/reimport/logs/file>``` - path to the reimport logs file that will store the logs for the images that were reimported due to failure 
+    * Make sure that the ```reimport_images_run.sh``` file is executable and the ```reimport_images.py``` file is in the Omero docker container via a mount declared in ```docker-compose.yml```
